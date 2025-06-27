@@ -13,17 +13,24 @@
             ]
         },
         {
-            "label": "build",
+            "label": "build platform",
             "type": "shell",
-            "command": "odin build . -debug -out:build/game",
+            "command": "odin build . -debug -out:build/game -o:none",
+            "group": "build"
+        },
+        {
+            "label": "build game lib",
+            "type": "shell",
+            "command": "odin build game -out:build/game-lib.dylib -o:none -debug -build-mode:shared -no-entry-point",
             "group": "build"
         },
         {
             "label": "build debug",
             "dependsOn": [
                 "mkdir",
-                "build"
+                "build platform",
+                "build game lib"
             ]
-        }
+        },
     ]
 }

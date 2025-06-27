@@ -1,22 +1,26 @@
-package platform
+package main
 
+import "core:dynlib"
 import "core:fmt"
 import "core:math"
-import rl "vendor:raylib"
-
+import "core:os"
+import "core:time"
 import "game"
+import "platform"
+import rl "vendor:raylib"
 
 SCREEN_WIDTH :: 800
 SCREEN_HEIGHT :: 600
 TARGET_FRAME_RATE :: 60
 
+
 main :: proc() {
 	monitorRefreshRate := rl.GetMonitorRefreshRate(rl.GetCurrentMonitor())
-	fmt.println("Monitor refresh rate: ", monitorRefreshRate)
+	fmt.println(">>> Monitor refresh rate: ", monitorRefreshRate)
 
 	targetFPS := min(monitorRefreshRate, TARGET_FRAME_RATE)
 	rl.SetTargetFPS(targetFPS)
-	fmt.println("Target FPS set to: ", targetFPS)
+	fmt.println(">>> Target FPS set to: ", targetFPS)
 	rl.SetTraceLogLevel(rl.TraceLogLevel.TRACE)
 
 	flags := rl.ConfigFlags{rl.ConfigFlag.VSYNC_HINT, rl.ConfigFlag.WINDOW_HIGHDPI}
@@ -24,43 +28,66 @@ main :: proc() {
 
 	rl.InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Hello World!")
 
-	// SearchAndSetResourceDir("resources");
 	// load game controller config
-	fileText := rl.LoadFileText("gamecontrollerdb.txt")
+	fileText := rl.LoadFileText("resources/gamecontrollerdb.txt")
 	if fileText != nil {
 		rl.SetGamepadMappings(cstring(fileText))
 	}
 
 	off_screen_image := rl.GenImageColor(SCREEN_WIDTH, SCREEN_HEIGHT, rl.BLANK)
-	game_off_screen := game.GameOffScreenBuffer {
+	game_off_screen := game.OffScreenBuffer {
 		off_screen_image.data,
 		(u32)(off_screen_image.width),
 		(u32)(off_screen_image.height),
 		(u32)(off_screen_image.width),
 	}
 
-	input := game.GameInput{}
+	input := game.Input{}
 	keyboard_controller := &input.controllers[0]
 	keyboard_controller.isConnected = true
 
 	is_paused := false
+	game_code := platform.load_game_code()
+
+	game_memory := game.Memory{}
 
 	// game loop
 	for !rl.WindowShouldClose() {
-		if rl.IsKeyPressed(rl.KeyboardKey.P) {
-			is_paused = !is_paused
-		}
-
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.BLACK)
+
+		// input
 
 		keyboard_controller^.move_up.ended_down = rl.IsKeyDown(rl.KeyboardKey.W)
 		keyboard_controller^.move_down.ended_down = rl.IsKeyDown(rl.KeyboardKey.S)
 		keyboard_controller^.move_left.ended_down = rl.IsKeyDown(rl.KeyboardKey.A)
 		keyboard_controller^.move_right.ended_down = rl.IsKeyDown(rl.KeyboardKey.D)
 
+		// recording
+
+		// dynamic game loading
+		file_info, err := os.stat(platform.GAME_DLL_PATH)
+		if err == os.ERROR_NONE {
+			current_write_time := file_info.modification_time
+			if time.diff(game_code.last_write_time, current_write_time) > 0 {
+				fmt.println(">>> Game code has changed, reloading...")
+				platform.unload_game_code(&game_code)
+				game_code = platform.load_game_code()
+				game_code.last_write_time = current_write_time
+			}
+		}
+
+		// TODO sound
+
+		// pause 
+		if rl.IsKeyPressed(rl.KeyboardKey.P) {
+			is_paused = !is_paused
+		}
+
+		time_span := rl.GetFrameTime()
+		// update and render
 		if !is_paused {
-			game.game_update_and_render(input)
+			game_code.game_update_and_render(&game_memory, &input, &game_off_screen, time_span)
 		} else {
 			rl.DrawText("PAUSED", SCREEN_WIDTH / 2 - 40, SCREEN_HEIGHT / 2 - 20, 40, rl.WHITE)
 		}
