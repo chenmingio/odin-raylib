@@ -12,8 +12,8 @@ GAME_DLL_PATH :: "build/game-lib.dylib"
 // stub functions is default implementation which does nothing
 game_update_and_render_stub: game.UpdateAndRenderProc = proc(
 	_: ^game.Memory,
-	_: ^game.Input,
-	_: ^game.OffScreenBuffer,
+	_: game.Input,
+	_: game.OffScreenBuffer,
 	_: f32,
 ) {}
 

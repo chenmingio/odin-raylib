@@ -4,6 +4,7 @@ import "core:dynlib"
 import "core:fmt"
 import "core:math"
 import "core:os"
+import "core:slice"
 import "core:time"
 import "game"
 import "platform"
@@ -23,7 +24,7 @@ main :: proc() {
 	fmt.println(">>> Target FPS set to: ", targetFPS)
 	rl.SetTraceLogLevel(rl.TraceLogLevel.TRACE)
 
-	flags := rl.ConfigFlags{rl.ConfigFlag.VSYNC_HINT, rl.ConfigFlag.WINDOW_HIGHDPI}
+	flags :: rl.ConfigFlags{rl.ConfigFlag.VSYNC_HINT, rl.ConfigFlag.WINDOW_HIGHDPI}
 	rl.SetConfigFlags(flags)
 
 	rl.InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Hello World!")
@@ -36,14 +37,16 @@ main :: proc() {
 
 	off_screen_image := rl.GenImageColor(SCREEN_WIDTH, SCREEN_HEIGHT, rl.BLANK)
 	game_off_screen := game.OffScreenBuffer {
-		off_screen_image.data,
+		// cast is before from_ptr
+		slice.from_ptr(cast(^u32)off_screen_image.data, SCREEN_WIDTH * SCREEN_HEIGHT),
 		(u32)(off_screen_image.width),
 		(u32)(off_screen_image.height),
 		(u32)(off_screen_image.width),
 	}
+	bufferTexture := rl.LoadTextureFromImage(off_screen_image)
 
-	input := game.Input{}
-	keyboard_controller := &input.controllers[0]
+	game_input := game.Input{}
+	keyboard_controller := &game_input.controllers[0]
 	keyboard_controller.isConnected = true
 
 	is_paused := false
@@ -54,7 +57,7 @@ main :: proc() {
 	// game loop
 	for !rl.WindowShouldClose() {
 		rl.BeginDrawing()
-		rl.ClearBackground(rl.BLACK)
+		rl.ClearBackground(rl.GREEN)
 
 		// input
 
@@ -87,12 +90,14 @@ main :: proc() {
 		time_span := rl.GetFrameTime()
 		// update and render
 		if !is_paused {
-			game_code.game_update_and_render(&game_memory, &input, &game_off_screen, time_span)
+			game_code.game_update_and_render(&game_memory, game_input, game_off_screen, time_span)
+			rl.UpdateTexture(bufferTexture, off_screen_image.data)
+			rl.DrawTexture(bufferTexture, 100, 100, rl.WHITE)
 		} else {
 			rl.DrawText("PAUSED", SCREEN_WIDTH / 2 - 40, SCREEN_HEIGHT / 2 - 20, 40, rl.WHITE)
 		}
-
 		rl.EndDrawing()
 	}
+	rl.UnloadTexture(bufferTexture)
 	rl.CloseWindow()
 }

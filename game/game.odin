@@ -1,27 +1,29 @@
 package game
+import "base:intrinsics"
 import "core:fmt"
+import "core:slice"
 import rl "vendor:raylib"
 
-// 游戏声音输出缓冲区
+// RGBA
+RED := intrinsics.byte_swap(u32(0xFF0000FF))
+GREEN := intrinsics.byte_swap(u32(0x00FF00FF))
+BLUE := intrinsics.byte_swap(u32(0x0000FFFF))
+
 SoundOutputBuffer :: struct {
 	samples:            [^]i16,
 	samples_per_second: u32,
 	sample_count:       u32,
 }
 
-// 游戏内存结构
 Memory :: struct {
 	permanent_storage:      [^]u8,
 	permanent_storage_size: u64,
 	transient_storage:      [^]u8,
 	transient_storage_size: u64,
-
-	// 内部调试功能
-	// 如果需要添加调试函数指针，可以在这里添加
 }
 
 OffScreenBuffer :: struct {
-	memory: rawptr,
+	data:   []u32,
 	width:  u32,
 	height: u32,
 	pitch:  u32,
@@ -58,8 +60,8 @@ ControllerInput :: struct {
 
 UpdateAndRenderProc :: #type proc(
 	game_memory: ^Memory,
-	input: ^Input,
-	image_buffer: ^OffScreenBuffer,
+	input: Input,
+	image_buffer: OffScreenBuffer,
 	time_span: f32,
 )
 
@@ -68,24 +70,27 @@ GetSoundSamplesProc :: #type proc(game_memory: ^Memory, sound_buffer: ^SoundOutp
 @(export)
 update_and_render: UpdateAndRenderProc : proc(
 	game_memory: ^Memory,
-	input: ^Input,
-	image_buffer: ^OffScreenBuffer,
+	input: Input,
+	image_buffer: OffScreenBuffer,
 	time_span: f32,
 ) {
 
-	gameMap := [5]i32{1, 0, 1, 0, 1}
+	gameMap :: [5]i32{1, 0, 1, 0, 1}
 
 	offset := i32(0)
+
+	color := BLUE
+
 	if input.controllers[0].move_up.ended_down {
 		offset += 100
+		color = RED
 	}
 	if input.controllers[0].move_down.ended_down {
 		offset -= 100
+		color = GREEN
 	}
 
-	// for i in gameMap {
-	// 	rl.DrawRectangle(i * 100 + offset * 10, 100, 100, 100, rl.BLUE)
-	// }
+	slice.fill(image_buffer.data[0:70000], color)
 
 }
 
