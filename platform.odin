@@ -61,6 +61,8 @@ main :: proc() {
 
 		if !is_paused {
 			game.game_update_and_render(input)
+		} else {
+			rl.DrawText("PAUSED", SCREEN_WIDTH / 2 - 40, SCREEN_HEIGHT / 2 - 20, 40, rl.WHITE)
 		}
 
 		rl.EndDrawing()
