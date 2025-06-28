@@ -3,6 +3,7 @@ package main
 import "core:dynlib"
 import "core:fmt"
 import "core:math"
+import "core:mem"
 import "core:os"
 import "core:slice"
 import "core:time"
@@ -52,6 +53,14 @@ main :: proc() {
 	game_code := platform.load_game_code()
 
 	game_memory := game.Memory{}
+	storage_size := 64 * mem.Megabyte
+	arena_backing := make([]byte, storage_size)
+	arena := mem.Arena{}
+	mem.arena_init(&arena, arena_backing)
+	arena_allocator := mem.arena_allocator(&arena)
+	context.allocator = arena_allocator
+
+	game_memory.arena = arena
 
 	// game loop
 	for !rl.WindowShouldClose() {
