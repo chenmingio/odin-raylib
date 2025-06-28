@@ -21,7 +21,7 @@
         {
             "label": "build game lib",
             "type": "shell",
-            "command": "odin build game -out:build/game-lib.dylib -o:none -debug -build-mode:shared -no-entry-point",
+            "command": "odin build game -out:build/game-lib.dylib -o:none -debug -build-mode:shared",
             "group": "build"
         },
         {

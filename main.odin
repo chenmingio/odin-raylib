@@ -39,9 +39,8 @@ main :: proc() {
 	game_off_screen := game.OffScreenBuffer {
 		// cast is before from_ptr
 		slice.from_ptr(cast(^u32)off_screen_image.data, SCREEN_WIDTH * SCREEN_HEIGHT),
-		(u32)(off_screen_image.width),
-		(u32)(off_screen_image.height),
-		(u32)(off_screen_image.width),
+		u32(off_screen_image.width),
+		u32(off_screen_image.height),
 	}
 	bufferTexture := rl.LoadTextureFromImage(off_screen_image)
 
@@ -92,7 +91,7 @@ main :: proc() {
 		if !is_paused {
 			game_code.game_update_and_render(&game_memory, game_input, game_off_screen, time_span)
 			rl.UpdateTexture(bufferTexture, off_screen_image.data)
-			rl.DrawTexture(bufferTexture, 100, 100, rl.WHITE)
+			rl.DrawTexture(bufferTexture, 0, 0, rl.WHITE)
 		} else {
 			rl.DrawText("PAUSED", SCREEN_WIDTH / 2 - 40, SCREEN_HEIGHT / 2 - 20, 40, rl.WHITE)
 		}
