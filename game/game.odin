@@ -60,20 +60,20 @@ update_and_render: UpdateAndRenderProc : proc(
 	time_span: f32,
 ) {
 
-	game_state: ^GameState
+	using game_state: ^GameState
 	if !game_memory.is_initialized {
 		// already set arena as default allocator
 		game_state = new(GameState)
 		game_memory.permanent_storage = game_state
-		game_state^.camera_pos = WorldPos{V2i{0, 0}, V2{0, 0}}
+		camera_pos = WorldPos{V2i{0, 0}, V2{0, 0}}
 
-		game_state^.entities[game_state^.entity_count] = Entity {
+		entities[entity_count] = Entity {
 			WorldPos{V2i{0, 1}, V2{0.5, 0.5}},
 			EntityType.Player,
 			V2{2.8, 3.8},
 		}
-		game_state^.player = &game_state^.entities[game_state^.entity_count]
-		game_state^.entity_count += 1
+		player = &entities[entity_count]
+		entity_count += 1
 
 		for i in 0 ..< 10 {
 			entity := Entity {
@@ -81,8 +81,8 @@ update_and_render: UpdateAndRenderProc : proc(
 				EntityType.Wall,
 				V2{wall_size, wall_size},
 			}
-			game_state^.entities[game_state^.entity_count] = entity
-			game_state^.entity_count += 1
+			entities[entity_count] = entity
+			entity_count += 1
 		}
 
 		game_memory.is_initialized = true
@@ -106,25 +106,25 @@ update_and_render: UpdateAndRenderProc : proc(
 	if input.controllers[0].move_right.ended_down {
 		move = V2{0.1, 0}
 	}
-	game_state^.player^.pos.relXY += move
+	player^.pos.relXY += move
 
-	for entity_idx in 0 ..< game_state^.entity_count {
-		entity := game_state^.entities[entity_idx]
-		relative_pos := relative_pos(entity.pos, game_state^.camera_pos) * meter_to_pixel
-		width := i32(entity.size.x * meter_to_pixel)
-		height := i32(entity.size.y * meter_to_pixel)
-		switch entity.type {
-		case EntityType.Player:
-			draw_entity_rectangle(relative_pos, width, height, BLUE, image_buffer)
+	for entity_idx in 0 ..< entity_count {
+		using entity := entities[entity_idx]
+		rel_pos := relative_pos(pos, camera_pos) * meter_to_pixel
+		width := i32(size.x * meter_to_pixel)
+		height := i32(size.y * meter_to_pixel)
+		switch type {
+		case .Player:
+			draw_entity_rectangle(rel_pos, width, height, BLUE, image_buffer)
 			break
-		case EntityType.Wall:
-			draw_entity_rectangle(relative_pos, width, height, GREEN, image_buffer)
+		case .Wall:
+			draw_entity_rectangle(rel_pos, width, height, GREEN, image_buffer)
 			break
-		case EntityType.Tree:
+		case .Tree:
 			break
-		case EntityType.Enemy:
+		case .Enemy:
 			break
-		case EntityType.Null:
+		case .Null:
 			fmt.eprint(">>> Null entity should not be rendered")
 			break
 		}
