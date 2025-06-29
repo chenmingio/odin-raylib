@@ -113,20 +113,16 @@ update_and_render: UpdateAndRenderProc : proc(
 		rel_pos := relative_pos(pos, camera_pos) * meter_to_pixel
 		width := i32(size.x * meter_to_pixel)
 		height := i32(size.y * meter_to_pixel)
-		switch type {
+
+		assert(type != .Null)
+
+		#partial switch type {
 		case .Player:
 			draw_entity_rectangle(rel_pos, width, height, BLUE, image_buffer)
-			break
 		case .Wall:
 			draw_entity_rectangle(rel_pos, width, height, GREEN, image_buffer)
-			break
 		case .Tree:
-			break
 		case .Enemy:
-			break
-		case .Null:
-			fmt.eprint(">>> Null entity should not be rendered")
-			break
 		}
 	}
 }
