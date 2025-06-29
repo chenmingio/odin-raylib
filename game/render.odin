@@ -12,22 +12,22 @@ WHITE := intrinsics.byte_swap(u32(0xFFFFFFFF))
 
 OffScreenBuffer :: struct {
 	data:   []u32,
-	width:  u32,
-	height: u32,
+	width:  i32,
+	height: i32,
 }
 
 // pos is at the gravity center of entity
 draw_entity_rectangle :: proc(
 	pos: ScreenPos,
-	width: u32,
-	height: u32,
+	width: i32,
+	height: i32,
 	color: u32,
 	buffer: OffScreenBuffer,
 ) {
-	center_x := i32(buffer.width) / 2 + i32(pos.x)
-	center_y := i32(buffer.height) / 2 - i32(pos.y)
+	center_x := buffer.width / 2 + i32(pos.x)
+	center_y := buffer.height / 2 - i32(pos.y)
 
-	draw_rectangle(center_x - i32(width) / 2, center_y - i32(height), width, height, color, buffer)
+	draw_rectangle(center_x - width / 2, center_y - height / 2, width, height, color, buffer)
 }
 
 // for screen space, 00 is top left, 11 is bottom right
@@ -35,13 +35,13 @@ draw_entity_rectangle :: proc(
 draw_rectangle :: proc(
 	x: i32,
 	y: i32,
-	width: u32,
-	height: u32,
+	width: i32,
+	height: i32,
 	color: u32,
 	buffer: OffScreenBuffer,
 ) {
-	x := u32(max(0, x))
-	y := u32(max(0, y))
+	x := max(0, x)
+	y := max(0, y)
 
 	minX := min(x, buffer.width)
 	maxX := min(x + width, buffer.width)

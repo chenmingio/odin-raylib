@@ -40,8 +40,8 @@ main :: proc() {
 	game_off_screen := game.OffScreenBuffer {
 		// cast is before from_ptr
 		slice.from_ptr(cast(^u32)off_screen_image.data, SCREEN_WIDTH * SCREEN_HEIGHT),
-		u32(off_screen_image.width),
-		u32(off_screen_image.height),
+		off_screen_image.width,
+		off_screen_image.height,
 	}
 	bufferTexture := rl.LoadTextureFromImage(off_screen_image)
 

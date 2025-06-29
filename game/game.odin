@@ -99,8 +99,8 @@ update_and_render: UpdateAndRenderProc : proc(
 	player := game_state^.player
 	draw_entity_rectangle(
 		relative_pos(player.pos, game_state^.camera_pos),
-		u32(player.size.x * 100),
-		u32(player.size.y * 100),
+		i32(player.size.x * 100),
+		i32(player.size.y * 100),
 		BLUE,
 		image_buffer,
 	)
