@@ -55,12 +55,11 @@ main :: proc() {
 	game_memory := game.Memory{}
 	storage_size := 64 * mem.Megabyte
 	arena_backing := make([]byte, storage_size)
+
 	arena := mem.Arena{}
 	mem.arena_init(&arena, arena_backing)
 	arena_allocator := mem.arena_allocator(&arena)
 	context.allocator = arena_allocator
-
-	game_memory.arena = arena
 
 	// game loop
 	for !rl.WindowShouldClose() {
@@ -69,10 +68,10 @@ main :: proc() {
 
 		// input
 
-		keyboard_controller^.move_up.ended_down = rl.IsKeyDown(rl.KeyboardKey.W)
-		keyboard_controller^.move_down.ended_down = rl.IsKeyDown(rl.KeyboardKey.S)
-		keyboard_controller^.move_left.ended_down = rl.IsKeyDown(rl.KeyboardKey.A)
-		keyboard_controller^.move_right.ended_down = rl.IsKeyDown(rl.KeyboardKey.D)
+		keyboard_controller^.move_up.ended_down = rl.IsKeyDown(rl.KeyboardKey.UP)
+		keyboard_controller^.move_down.ended_down = rl.IsKeyDown(rl.KeyboardKey.DOWN)
+		keyboard_controller^.move_left.ended_down = rl.IsKeyDown(rl.KeyboardKey.LEFT)
+		keyboard_controller^.move_right.ended_down = rl.IsKeyDown(rl.KeyboardKey.RIGHT)
 
 		// recording
 

@@ -10,4 +10,5 @@ EntityType :: enum {
 Entity :: struct {
 	pos:  WorldPos,
 	type: EntityType,
+	size: V2,
 }

@@ -8,6 +8,7 @@ RED := intrinsics.byte_swap(u32(0xFF0000FF))
 GREEN := intrinsics.byte_swap(u32(0x00FF00FF))
 BLUE := intrinsics.byte_swap(u32(0x0000FFFF))
 BLACK := intrinsics.byte_swap(u32(0x000000FF))
+WHITE := intrinsics.byte_swap(u32(0xFFFFFFFF))
 
 OffScreenBuffer :: struct {
 	data:   []u32,

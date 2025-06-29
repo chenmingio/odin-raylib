@@ -2,17 +2,32 @@ package game
 import "core:fmt"
 import "core:math/linalg"
 import "core:mem"
+import "core:relative"
 import rl "vendor:raylib"
 
 
 V2 :: linalg.Vector2f32
+V2i :: [2]i32
 
-GameState :: struct {}
+chunkSize :: u32(128)
 
-// TODO restruct with chunks and relPos
-WorldPos :: linalg.Vector2f32
+WorldPos :: struct {
+	chunkXY: V2i,
+	relXY:   V2,
+}
 
-ScreenPos :: linalg.Vector2f32
+relative_pos :: proc(x, y: WorldPos) -> V2 {
+	return x.relXY - y.relXY + linalg.to_f32((x.chunkXY - y.chunkXY) * i32(chunkSize))
+}
+
+
+GameState :: struct {
+	camera_pos: WorldPos,
+	player:     Entity,
+}
+
+
+ScreenPos :: V2
 
 Rectangle :: struct {
 	min: V2,
@@ -20,8 +35,8 @@ Rectangle :: struct {
 }
 
 Memory :: struct {
-	arena:          mem.Arena,
-	is_initialized: bool,
+	is_initialized:    bool,
+	permanent_storage: rawptr,
 }
 
 UpdateAndRenderProc :: #type proc(
@@ -43,32 +58,52 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	game_state: ^GameState
 	if !game_memory.is_initialized {
-		game_state = new(GameState) // already set arena as default allocator
+		// already set arena as default allocator
+		game_state = new(GameState)
+		game_memory.permanent_storage = game_state
+		game_state^.camera_pos = WorldPos{V2i{0, 0}, V2{0, 0}}
+		game_state^.player = Entity {
+			WorldPos{V2i{0, 0}, V2{0.5, 0.5}},
+			EntityType.Player,
+			V2{0.8, 1.8},
+		}
+
 		game_memory.is_initialized = true
 	} else {
-		game_state = cast(^GameState)&game_memory.arena.data[0]
+		game_state = cast(^GameState)game_memory.permanent_storage
 	}
 
 	game_map :: [5]i32{1, 0, 1, 0, 1}
+	draw_rectangle(0, 0, 800, 600, WHITE, image_buffer)
 
-	offset := i32(0)
-
-	color := BLUE
-
+	move: V2
 	if input.controllers[0].move_up.ended_down {
-		offset += 100
-		color = RED
+		move = V2{0, 10}
 	}
 	if input.controllers[0].move_down.ended_down {
-		offset -= 100
-		color = GREEN
+		move = V2{0, -10}
+	}
+	if input.controllers[0].move_left.ended_down {
+		move = V2{-10, 0}
+	}
+	if input.controllers[0].move_right.ended_down {
+		move = V2{10, 0}
 	}
 
-	draw_rectangle(0, 0, 100, 100, RED, image_buffer)
-	draw_rectangle(750, 0, 100, 100, GREEN, image_buffer)
-	draw_rectangle(750, 550, 100, 100, BLUE, image_buffer)
+	game_state^.player.pos.relXY += move
 
-	draw_entity_rectangle(ScreenPos{0, 0}, 100, 100, color, image_buffer)
+	// draw_rectangle(0, 0, 100, 100, RED, image_buffer)
+	// draw_rectangle(750, 0, 100, 100, GREEN, image_buffer)
+	// draw_rectangle(750, 550, 100, 100, BLUE, image_buffer)
+
+	player := game_state^.player
+	draw_entity_rectangle(
+		relative_pos(player.pos, game_state^.camera_pos),
+		u32(player.size.x * 100),
+		u32(player.size.y * 100),
+		BLUE,
+		image_buffer,
+	)
 }
 
 @(export)
