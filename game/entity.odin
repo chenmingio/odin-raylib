@@ -1,6 +1,7 @@
 package game
 
 EntityType :: enum {
+	Null,
 	Player,
 	Enemy,
 	Tree,
