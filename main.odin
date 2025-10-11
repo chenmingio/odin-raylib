@@ -11,24 +11,29 @@ import "game"
 import "platform"
 import rl "vendor:raylib"
 
-SCREEN_WIDTH :: 800
-SCREEN_HEIGHT :: 600
-TARGET_FRAME_RATE :: 60
-
 
 main :: proc() {
-	monitorRefreshRate := rl.GetMonitorRefreshRate(rl.GetCurrentMonitor())
-	fmt.println(">>> Monitor refresh rate: ", monitorRefreshRate)
+	// failed to get monitor info on Mac
+	// screen_width := rl.GetMonitorWidth(rl.GetCurrentMonitor())
+	// screen_height := rl.GetMonitorHeight(rl.GetCurrentMonitor())
+	// name := rl.GetMonitorName(rl.GetCurrentMonitor())
+	// monitorRefreshRate := rl.GetMonitorRefreshRate(rl.GetCurrentMonitor())
 
-	targetFPS := min(monitorRefreshRate, TARGET_FRAME_RATE)
-	rl.SetTargetFPS(targetFPS)
-	fmt.println(">>> Target FPS set to: ", targetFPS)
+	screen_width := i32(5120 / 2)
+	screen_height := i32(2880 / 2)
+	target_fps := i32(60)
+
+	rl.SetTargetFPS(target_fps)
 	rl.SetTraceLogLevel(rl.TraceLogLevel.TRACE)
 
-	flags :: rl.ConfigFlags{rl.ConfigFlag.VSYNC_HINT, rl.ConfigFlag.WINDOW_HIGHDPI}
+	flags :: rl.ConfigFlags {
+		rl.ConfigFlag.VSYNC_HINT,
+		rl.ConfigFlag.WINDOW_HIGHDPI,
+		// rl.ConfigFlag.FULLSCREEN_MODE,
+	}
 	rl.SetConfigFlags(flags)
 
-	rl.InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Hello World!")
+	rl.InitWindow(screen_width, screen_height, "Hello World!")
 
 	// load game controller config
 	fileText := rl.LoadFileText("resources/gamecontrollerdb.txt")
@@ -36,10 +41,10 @@ main :: proc() {
 		rl.SetGamepadMappings(cstring(fileText))
 	}
 
-	off_screen_image := rl.GenImageColor(SCREEN_WIDTH, SCREEN_HEIGHT, rl.BLANK)
+	off_screen_image := rl.GenImageColor(screen_width, screen_height, rl.BLANK)
 	game_off_screen := game.OffScreenBuffer {
 		// cast is before from_ptr
-		slice.from_ptr(cast(^u32)off_screen_image.data, SCREEN_WIDTH * SCREEN_HEIGHT),
+		slice.from_ptr(cast(^u32)off_screen_image.data, int(screen_width * screen_height)),
 		off_screen_image.width,
 		off_screen_image.height,
 	}
@@ -53,13 +58,25 @@ main :: proc() {
 	game_code := platform.load_game_code()
 
 	game_memory := game.Memory{}
-	storage_size := 64 * mem.Megabyte
-	arena_backing := make([]byte, storage_size)
 
-	arena := mem.Arena{}
-	mem.arena_init(&arena, arena_backing)
-	arena_allocator := mem.arena_allocator(&arena)
-	context.allocator = arena_allocator
+	permanent_storage_size := 64 * mem.Megabyte
+	temporary_storage_size := 1 * mem.Gigabyte
+
+	// make will be "arena" if you set context.allocator. Now it's default heap allocator.
+	permanent_storage := make([]byte, permanent_storage_size)
+	temporary_storage := make([]byte, temporary_storage_size)
+	assert(permanent_storage != nil)
+	assert(temporary_storage != nil)
+
+	permanent_arena := mem.Arena{}
+	mem.arena_init(&permanent_arena, permanent_storage)
+	permanent_arena_allocator := mem.arena_allocator(&permanent_arena)
+	context.allocator = permanent_arena_allocator
+
+	temporary_arena := mem.Arena{}
+	mem.arena_init(&temporary_arena, temporary_storage)
+	temporary_arena_allocator := mem.arena_allocator(&temporary_arena)
+	context.temp_allocator = temporary_arena_allocator
 
 	// game loop
 	for !rl.WindowShouldClose() {
@@ -68,10 +85,10 @@ main :: proc() {
 
 		// input
 
-		keyboard_controller^.move_up.ended_down = rl.IsKeyDown(rl.KeyboardKey.UP)
-		keyboard_controller^.move_down.ended_down = rl.IsKeyDown(rl.KeyboardKey.DOWN)
-		keyboard_controller^.move_left.ended_down = rl.IsKeyDown(rl.KeyboardKey.LEFT)
-		keyboard_controller^.move_right.ended_down = rl.IsKeyDown(rl.KeyboardKey.RIGHT)
+		keyboard_controller^.move_up.ended_down = rl.IsKeyDown(rl.KeyboardKey.W)
+		keyboard_controller^.move_down.ended_down = rl.IsKeyDown(rl.KeyboardKey.S)
+		keyboard_controller^.move_left.ended_down = rl.IsKeyDown(rl.KeyboardKey.A)
+		keyboard_controller^.move_right.ended_down = rl.IsKeyDown(rl.KeyboardKey.D)
 
 		// recording
 
@@ -101,7 +118,7 @@ main :: proc() {
 			rl.UpdateTexture(bufferTexture, off_screen_image.data)
 			rl.DrawTexture(bufferTexture, 0, 0, rl.WHITE)
 		} else {
-			rl.DrawText("PAUSED", SCREEN_WIDTH / 2 - 40, SCREEN_HEIGHT / 2 - 20, 40, rl.WHITE)
+			rl.DrawText("PAUSED", screen_width / 2 - 40, screen_height / 2 - 20, 40, rl.WHITE)
 		}
 		rl.EndDrawing()
 	}

@@ -32,5 +32,30 @@
                 "build game lib"
             ]
         },
+        {
+            "label": "odin test",
+            "type": "shell",
+            "command": "odin test ${fileDirname}",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Current Test",
+            "type": "shell",
+            "command": "odin test ${fileDirname}",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        }
     ]
 }
