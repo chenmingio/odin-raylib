@@ -46,7 +46,7 @@ Rectangle :: struct {
 	max: V2i,
 }
 
-// permanent_storage doesn't equal to data ptr of arena (becuase there is metadata at the beginning of arena), 
+// permanent_storage doesn't equal to data ptr of arena (becuase there is metadata at the beginning of arena),
 // it's assigned when you first allocate something
 Memory :: struct {
 	is_initialized:    bool,
@@ -107,12 +107,12 @@ update_and_render: UpdateAndRenderProc : proc(
 		assert(err == nil)
 		game_state^.background = background_img
 
-		hero_img, err := image.load_from_file(
+		hero_img, load_err := image.load_from_file(
 			"resources/warrior_blue_run.png",
 			{},
 			context.temp_allocator,
 		)
-		assert(err == nil)
+		assert(load_err == nil)
 		game_state^.img_hero[0] = hero_img
 
 
