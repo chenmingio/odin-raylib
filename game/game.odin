@@ -53,6 +53,7 @@ Memory :: struct {
 	permanent_storage: rawptr,
 }
 
+// 动态函数类型
 UpdateAndRenderProc :: #type proc(
 	memory: ^Memory,
 	input: Input,

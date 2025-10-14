@@ -1,6 +1,5 @@
 package main
 
-import "core:dynlib"
 import "core:fmt"
 import "core:math"
 import "core:mem"
@@ -12,8 +11,58 @@ import "platform"
 import rl "vendor:raylib"
 
 
+// 平台能力
+// 动态加载游戏库
+// Arena内存分配器
+// 屏幕buffer
+// 输入
+// TODO
+// 音频
+// recording & replay
+
+SAMPLE_RATE :: 48000 // 48kHz 采样率
+CHANNELS :: 2 // 双声道
+BITS_PER_SAMPLE :: 16 // 16位深度 (i16) 单个声道的位深度
+BYTES_PER_SAMPLE :: BITS_PER_SAMPLE / 8 // 单个样本的字节数 = 2
+BYTES_PER_FRAME :: BYTES_PER_SAMPLE * CHANNELS // 一帧的字节数 = 4
+
+MAX_SAMPLES_PER_UPDATE :: 4096 // 每次更新的样本数
+MAX_SAMPLES_SECONDS :: 3 // 最大样本数
+
+// 全局变量用于音频生成
+sine_index: f32 = 0.0
+
+// 你要把frames数量的样本写入bufferData
+audio_input_callback :: proc "c" (bufferData: rawptr, frames: u32) {
+	// 将 rawptr 转换为 i16 slice
+	samples := slice.from_ptr(cast(^i16)bufferData, int(frames * CHANNELS))
+
+	frequency: f32 = 440.0  // A4 音符
+	increment := frequency / f32(SAMPLE_RATE)
+
+	for i in 0 ..< int(frames) {
+		sample := i16(8000.0 * math.sin(2 * math.PI * sine_index))
+		samples[i * 2] = sample     // 左声道
+		samples[i * 2 + 1] = sample // 右声道
+		
+		sine_index += increment
+		if sine_index >= 1.0 {
+			sine_index -= 1.0
+		}
+	}
+}
+
+setup_audio :: proc() -> rl.AudioStream {
+	rl.InitAudioDevice()
+	rl.SetAudioStreamBufferSizeDefault(MAX_SAMPLES_PER_UPDATE)
+	stream := rl.LoadAudioStream(SAMPLE_RATE, BITS_PER_SAMPLE, CHANNELS)
+	rl.SetAudioStreamCallback(stream, audio_input_callback)
+	rl.PlayAudioStream(stream)  // 只在初始化时调用一次
+	return stream
+}
+
 main :: proc() {
-	// failed to get monitor info on Mac
+	// 没有正确打包应用，目前无法获取显示器信息
 	// screen_width := rl.GetMonitorWidth(rl.GetCurrentMonitor())
 	// screen_height := rl.GetMonitorHeight(rl.GetCurrentMonitor())
 	// name := rl.GetMonitorName(rl.GetCurrentMonitor())
@@ -34,6 +83,16 @@ main :: proc() {
 	rl.SetConfigFlags(flags)
 
 	rl.InitWindow(screen_width, screen_height, "Hello World!")
+
+	// Audio
+	sound_samples := make([]i16, MAX_SAMPLES_PER_UPDATE * 2) // 2 channels (stereo)
+	soundOutput := platform.RayLibSoundOutput {
+		samples     = sound_samples,
+		duration    = MAX_SAMPLES_SECONDS,
+		sample_rate = SAMPLE_RATE,
+	}
+
+	stream := setup_audio()
 
 	// load game controller config
 	fileText := rl.LoadFileText("resources/gamecontrollerdb.txt")
@@ -57,26 +116,29 @@ main :: proc() {
 	is_paused := false
 	game_code := platform.load_game_code()
 
+	// 内存管理
 	game_memory := game.Memory{}
 
 	permanent_storage_size := 64 * mem.Megabyte
 	temporary_storage_size := 1 * mem.Gigabyte
 
-	// make will be "arena" if you set context.allocator. Now it's default heap allocator.
+	// Arena内存分配器
+	// 先在heap上分配好空间(使用默认分配器)
 	permanent_storage := make([]byte, permanent_storage_size)
 	temporary_storage := make([]byte, temporary_storage_size)
 	assert(permanent_storage != nil)
 	assert(temporary_storage != nil)
 
+	// 构建arena分配器
 	permanent_arena := mem.Arena{}
 	mem.arena_init(&permanent_arena, permanent_storage)
 	permanent_arena_allocator := mem.arena_allocator(&permanent_arena)
-	context.allocator = permanent_arena_allocator
+	context.allocator = permanent_arena_allocator // 修改默认分配器为Arena分配器
 
 	temporary_arena := mem.Arena{}
 	mem.arena_init(&temporary_arena, temporary_storage)
 	temporary_arena_allocator := mem.arena_allocator(&temporary_arena)
-	context.temp_allocator = temporary_arena_allocator
+	context.temp_allocator = temporary_arena_allocator // 临时分配器也用Arena分配器(不同的储存空间)
 
 	// game loop
 	for !rl.WindowShouldClose() {
@@ -92,12 +154,12 @@ main :: proc() {
 
 		// recording
 
-		// dynamic game loading
+		// 查看游戏库，如果修改时间晚于上次的记录时间，就重新加载
 		file_info, err := os.stat(platform.GAME_DLL_PATH)
 		if err == os.ERROR_NONE {
 			current_write_time := file_info.modification_time
 			if time.diff(game_code.last_write_time, current_write_time) > 0 {
-				fmt.println(">>> Game code has changed, reloading...")
+				fmt.println("游戏代码已更新，重新加载...")
 				platform.unload_game_code(&game_code)
 				game_code = platform.load_game_code()
 				game_code.last_write_time = current_write_time
@@ -106,7 +168,7 @@ main :: proc() {
 
 		// TODO sound
 
-		// pause 
+		// pause
 		if rl.IsKeyPressed(rl.KeyboardKey.P) {
 			is_paused = !is_paused
 		}
@@ -120,6 +182,7 @@ main :: proc() {
 		} else {
 			rl.DrawText("PAUSED", screen_width / 2 - 40, screen_height / 2 - 20, 40, rl.WHITE)
 		}
+
 		rl.EndDrawing()
 	}
 	rl.UnloadTexture(bufferTexture)
