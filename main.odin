@@ -11,11 +11,10 @@ import rl "vendor:raylib"
 
 
 // 平台能力
+// 屏幕buffer
 // 动态加载游戏库
 // Arena内存分配器
-// 屏幕buffer
 // 输入
-// TODO
 // 音频
 // recording & replay
 
@@ -77,7 +76,7 @@ main :: proc() {
 	game_memory := game.Memory{}
 
 	permanent_storage_size := 64 * mem.Megabyte
-	temporary_storage_size := 1 * mem.Gigabyte
+	temporary_storage_size := 256 * mem.Megabyte
 
 	// Arena内存分配器
 	// 先在heap上分配好空间(使用默认分配器)
@@ -97,6 +96,13 @@ main :: proc() {
 	temporary_arena_allocator := mem.arena_allocator(&temporary_arena)
 	context.temp_allocator = temporary_arena_allocator // 临时分配器也用Arena分配器(不同的储存空间)
 
+	// 录制回放状态
+	// 记录内存的起始点和总大小
+	record_state := platform.RecordState {
+		game_memory_block = raw_data(permanent_storage),
+		total_size        = permanent_storage_size + temporary_storage_size,
+	}
+
 	// game loop
 	for !rl.WindowShouldClose() {
 		rl.BeginDrawing()
@@ -104,12 +110,40 @@ main :: proc() {
 
 		// input
 
-		keyboard_controller^.move_up.ended_down = rl.IsKeyDown(rl.KeyboardKey.W)
-		keyboard_controller^.move_down.ended_down = rl.IsKeyDown(rl.KeyboardKey.S)
-		keyboard_controller^.move_left.ended_down = rl.IsKeyDown(rl.KeyboardKey.A)
-		keyboard_controller^.move_right.ended_down = rl.IsKeyDown(rl.KeyboardKey.D)
+		// 录制回放控制 (使用 L 键，匹配 C 版本逻辑)
+		if rl.IsKeyPressed(rl.KeyboardKey.L) {
+			if record_state.is_recording {
+				// 正在录制 → 停止录制并开始回放
+				platform.stop_recording(&record_state)
+				platform.start_replaying(&record_state, "input_recording.dat")
+				fmt.println("停止录制，开始回放")
+			} else if record_state.is_replaying {
+				// 正在回放 → 停止回放
+				platform.stop_replaying(&record_state)
+				fmt.println("停止回放")
+			} else {
+				// 都没有 → 开始录制
+				platform.start_recording(&record_state, "input_recording.dat")
+				fmt.println("开始录制")
+			}
+		}
 
-		// recording
+		// 根据当前模式获取输入
+		if record_state.is_replaying {
+			// 回放模式：从文件读取输入
+			platform.loop_read_input(&record_state, &game_input)
+		} else {
+			// 正常模式：获取真实输入
+			keyboard_controller^.move_up.ended_down = rl.IsKeyDown(rl.KeyboardKey.W)
+			keyboard_controller^.move_down.ended_down = rl.IsKeyDown(rl.KeyboardKey.S)
+			keyboard_controller^.move_left.ended_down = rl.IsKeyDown(rl.KeyboardKey.A)
+			keyboard_controller^.move_right.ended_down = rl.IsKeyDown(rl.KeyboardKey.D)
+
+			// 录制模式：保存输入到文件
+			if record_state.is_recording {
+				platform.record_input(&record_state, &game_input)
+			}
+		}
 
 		// 查看游戏库，如果修改时间晚于上次的记录时间，就重新加载
 		file_info, err := os.stat(platform.GAME_DLL_PATH)
@@ -140,8 +174,27 @@ main :: proc() {
 			rl.DrawText("PAUSED", screen_width / 2 - 40, screen_height / 2 - 20, 40, rl.WHITE)
 		}
 
+		// 显示录制回放状态
+		status_y := i32(10)
+		if record_state.is_recording {
+			rl.DrawText("RECORDING (L to stop & replay)", 10, status_y, 20, rl.RED)
+			status_y += 25
+		}
+		if record_state.is_replaying {
+			rl.DrawText("REPLAYING (L to stop)", 10, status_y, 20, rl.BLUE)
+			status_y += 25
+		}
+		if !record_state.is_recording && !record_state.is_replaying {
+			rl.DrawText("L: Record/Replay | P: Pause", 10, status_y, 20, rl.WHITE)
+		}
+
 		rl.EndDrawing()
 	}
+
+	// 清理录制回放资源
+	platform.stop_recording(&record_state)
+	platform.stop_replaying(&record_state)
+
 	rl.UnloadTexture(bufferTexture)
 	rl.CloseWindow()
 }

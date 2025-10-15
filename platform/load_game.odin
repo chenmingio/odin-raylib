@@ -34,7 +34,6 @@ RayLibGameCode :: struct {
 
 // load game code from dynamic library
 // if game code is not valid, use stub functions
-//
 load_game_code :: proc() -> RayLibGameCode {
 	result := RayLibGameCode{}
 

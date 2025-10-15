@@ -1,11 +1,7 @@
 package game
-import "core:fmt"
 import "core:image"
-import "core:image/png"
+import "core:image/png" // 必须保留！用于注册 PNG 加载器
 import "core:math/linalg"
-import "core:mem"
-import "core:relative"
-import rl "vendor:raylib"
 
 
 V2 :: linalg.Vector2f32
