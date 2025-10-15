@@ -2,8 +2,10 @@ package platform
 
 import "core:os"
 
+Sample :: distinct i16 // 音频样本类型别名
+
 RayLibSoundOutput :: struct {
-	samples:     []i16,  // 直接存储音频样本
+	samples:     []Sample, // 直接存储音频样本
 	// 使用带符号的int更适合做index
 	read_index:  int,
 	write_index: int,
