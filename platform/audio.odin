@@ -157,11 +157,3 @@ update_audio :: proc(is_paused: bool) {
 		ring_buffer_produce(ring_output.samples, &ring_output.write_index, sample_count, 440.0)
 	}
 }
-
-RayLibState :: struct {
-	total_size:         int,
-	write_input_stream: os.Handle,
-	read_input_stream:  os.Handle,
-	is_recording:       bool,
-	is_replaying:       bool,
-}

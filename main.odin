@@ -74,14 +74,15 @@ main :: proc() {
 
 	// 内存管理
 	game_memory := game.Memory{}
+	// 分配游戏内存 - 使用连续内存块（匹配 C 版本）
+	permanent_storage_size := mem.Megabyte * 256 // 256MB 永久内存
+	temporary_storage_size := mem.Megabyte * 64 // 64MB 临时内存
+	total_storage_size := permanent_storage_size + temporary_storage_size
 
-	permanent_storage_size := 64 * mem.Megabyte
-	temporary_storage_size := 256 * mem.Megabyte
-
-	// Arena内存分配器
-	// 先在heap上分配好空间(使用默认分配器)
-	permanent_storage := make([]byte, permanent_storage_size)
-	temporary_storage := make([]byte, temporary_storage_size)
+	// 分配一块连续内存，然后分割成两部分
+	total_storage := make([]u8, total_storage_size)
+	permanent_storage := total_storage[:permanent_storage_size]
+	temporary_storage := total_storage[permanent_storage_size:]
 	assert(permanent_storage != nil)
 	assert(temporary_storage != nil)
 
@@ -97,10 +98,10 @@ main :: proc() {
 	context.temp_allocator = temporary_arena_allocator // 临时分配器也用Arena分配器(不同的储存空间)
 
 	// 录制回放状态
-	// 记录内存的起始点和总大小
-	record_state := platform.RecordState {
-		game_memory_block = raw_data(permanent_storage),
-		total_size        = permanent_storage_size + temporary_storage_size,
+	// 记录内存的起始点和总大小（使用连续内存块）
+	record_state := platform.RayLibState {
+		game_memory_block = raw_data(total_storage), // 指向连续内存的开头
+		total_size        = total_storage_size,
 	}
 
 	// game loop
@@ -116,15 +117,12 @@ main :: proc() {
 				// 正在录制 → 停止录制并开始回放
 				platform.stop_recording(&record_state)
 				platform.start_replaying(&record_state, "input_recording.dat")
-				fmt.println("停止录制，开始回放")
 			} else if record_state.is_replaying {
 				// 正在回放 → 停止回放
 				platform.stop_replaying(&record_state)
-				fmt.println("停止回放")
 			} else {
 				// 都没有 → 开始录制
 				platform.start_recording(&record_state, "input_recording.dat")
-				fmt.println("开始录制")
 			}
 		}
 
@@ -190,10 +188,6 @@ main :: proc() {
 
 		rl.EndDrawing()
 	}
-
-	// 清理录制回放资源
-	platform.stop_recording(&record_state)
-	platform.stop_replaying(&record_state)
 
 	rl.UnloadTexture(bufferTexture)
 	rl.CloseWindow()
