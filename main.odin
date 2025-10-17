@@ -80,8 +80,9 @@ main :: proc() {
 	total_storage_size := permanent_storage_size + temporary_storage_size
 
 	// 分配一块连续内存，然后分割成两部分
-	total_storage := make([]u8, total_storage_size)
+	total_storage := make([]byte, total_storage_size)
 	permanent_storage := total_storage[:permanent_storage_size]
+	game_memory.permanent_storage = permanent_storage
 	temporary_storage := total_storage[permanent_storage_size:]
 	assert(permanent_storage != nil)
 	assert(temporary_storage != nil)

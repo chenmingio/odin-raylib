@@ -28,6 +28,30 @@ GameState :: struct {
 	img_hero:     [4]^image.Image,
 }
 
+// 辅助函数：获取活跃实体的 slice
+active_entities :: proc(state: ^GameState) -> []Entity {
+	return state.entities[:state.entity_count]
+}
+
+// 辅助函数：添加实体
+add_entity :: proc(state: ^GameState, entity: Entity) -> bool {
+	if state.entity_count < len(state.entities) {
+		state.entities[state.entity_count] = entity
+		state.entity_count += 1
+		return true
+	}
+	return false // 数组满了
+}
+
+// 辅助函数：删除实体（交换到末尾然后删除）
+remove_entity :: proc(state: ^GameState, index: u32) {
+	if index < state.entity_count {
+		// 把最后一个实体移到被删除的位置
+		state.entities[index] = state.entities[state.entity_count - 1]
+		state.entity_count -= 1
+	}
+}
+
 World :: struct {
 	tileSideInMeters:  f32,
 	chunkSideInMeters: f32,
@@ -46,7 +70,8 @@ Rectangle :: struct {
 // it's assigned when you first allocate something
 Memory :: struct {
 	is_initialized:    bool,
-	permanent_storage: rawptr,
+	permanent_storage: []byte,
+	game_state:        ^GameState,
 }
 
 // 动态函数类型
@@ -67,24 +92,33 @@ update_and_render: UpdateAndRenderProc : proc(
 	time_span: f32,
 ) {
 
-	// in c version, game_state *GameState = (game_state *)Memory->PermanentStorage;
-	// in odin version, I need to call new to allocate memory for game_state
-	using game_state: ^GameState
+	// C vs Odin 内存管理的关键区别：
+	//
+	// C: 直接指针转换
+	//   GameState *state = (GameState*)Memory->PermanentStorage;  // 直接把内存当作结构体使用
+	//
+	// Odin: Arena分配器 + 类型安全
+	//   state := new(GameState, context.allocator)  // 在arena上分配，返回类型化指针
+	//
+	// 为什么不能直接转换？
+	//   Memory->permanent_storage 指向 arena 的原始内存块
+	//   new() 在这个内存块上分配对象，但有内存对齐和元数据
+	//   所以不能简单地把 permanent_storage 强转为 GameState*
+	// 初始化工作
+	// 创建game_state
+	// 设置初始相机位置
+	// 加载entities
+	game_state: ^GameState
 	if !game_memory.is_initialized {
-		// already set arena as default allocator
+		// 用new在arena上分配空间
 		game_state = new(GameState)
-		// storage starts from the first byte of allocated memory, not arena's data ptr
-		// TODO consider use odin arena directly and remove memory struct, if odin's arena can handle recording/export well
-		game_memory.permanent_storage = game_state
-		camera_pos = WorldPos{V2i{0, 0}, V2{0, 0}}
+		game_memory^.game_state = game_state
 
-		entities[entity_count] = Entity {
-			WorldPos{V2i{0, 1}, V2{0.5, 0.5}},
-			EntityType.Player,
-			V2{2.8, 3.8},
-		}
-		player = &entities[entity_count]
-		entity_count += 1
+		game_state^.camera_pos = WorldPos{V2i{0, 0}, V2{0, 0}}
+
+		player := Entity{WorldPos{V2i{0, 1}, V2{0.5, 0.5}}, EntityType.Player, V2{2.8, 3.8}}
+		add_entity(game_state, player)
+		game_state^.player = &game_state^.entities[0]
 
 		for i in 0 ..< 10 {
 			entity := Entity {
@@ -92,8 +126,7 @@ update_and_render: UpdateAndRenderProc : proc(
 				EntityType.Wall,
 				V2{wall_size, wall_size},
 			}
-			entities[entity_count] = entity
-			entity_count += 1
+			add_entity(game_state, entity)
 		}
 
 		background_img, err := image.load_from_file(
@@ -115,7 +148,7 @@ update_and_render: UpdateAndRenderProc : proc(
 
 		game_memory.is_initialized = true
 	} else {
-		game_state = cast(^GameState)game_memory.permanent_storage
+		game_state = game_memory.game_state
 	}
 
 	game_map :: [5]i32{1, 0, 1, 0, 1}
@@ -137,17 +170,17 @@ update_and_render: UpdateAndRenderProc : proc(
 	if input.controllers[0].move_right.ended_down {
 		move += V2{0.1, 0}
 	}
-	player^.pos.relXY += move
+	game_state^.player^.pos.relXY += move
 
-	for entity_idx in 0 ..< entity_count {
-		using entity := entities[entity_idx]
-		rel_pos := relative_pos(pos, camera_pos) * meter_to_pixel
-		width := i32(size.x * meter_to_pixel)
-		height := i32(size.y * meter_to_pixel)
+	for entity_idx in 0 ..< game_state^.entity_count {
+		using entity := game_state^.entities[entity_idx]
+		rel_pos := relative_pos(entity.pos, game_state^.camera_pos) * meter_to_pixel
+		width := i32(entity.size.x * meter_to_pixel)
+		height := i32(entity.size.y * meter_to_pixel)
 
-		assert(type != .Null)
+		assert(entity.type != .Null)
 
-		#partial switch type {
+		#partial switch entity.type {
 		case .Player:
 			draw_entity_rectangle(rel_pos, width, height, BLUE, image_buffer)
 		// draw_animation(
