@@ -71,7 +71,6 @@ Rectangle :: struct {
 Memory :: struct {
 	is_initialized:    bool,
 	permanent_storage: []byte,
-	game_state:        ^GameState,
 }
 
 // 动态函数类型
@@ -92,30 +91,15 @@ update_and_render: UpdateAndRenderProc : proc(
 	time_span: f32,
 ) {
 
-	// C vs Odin 内存管理的关键区别：
-	//
-	// C: 直接指针转换
-	//   GameState *state = (GameState*)Memory->PermanentStorage;  // 直接把内存当作结构体使用
-	//
-	// Odin: Arena分配器 + 类型安全
-	//   state := new(GameState, context.allocator)  // 在arena上分配，返回类型化指针
-	//
-	// 为什么不能直接转换？
-	//   Memory->permanent_storage 指向 arena 的原始内存块
-	//   new() 在这个内存块上分配对象，但有内存对齐和元数据
-	//   所以不能简单地把 permanent_storage 强转为 GameState*
-	// 初始化工作
-	// 创建game_state
-	// 设置初始相机位置
-	// 加载entities
-	game_state: ^GameState
+	// 之前以为不能premanent_storage直接拿来用，其实是可以的。
+	// 只不过他是个slice，有元数据，要用raw_data来指向slice的data区域
+	game_state := cast(^GameState)raw_data(game_memory.permanent_storage)
 	if !game_memory.is_initialized {
-		// 用new在arena上分配空间
-		game_state = new(GameState)
-		game_memory^.game_state = game_state
-
+		// 初始化工作
+		// 设置初始相机位置
 		game_state^.camera_pos = WorldPos{V2i{0, 0}, V2{0, 0}}
 
+		// 加载entities
 		player := Entity{WorldPos{V2i{0, 1}, V2{0.5, 0.5}}, EntityType.Player, V2{2.8, 3.8}}
 		add_entity(game_state, player)
 		game_state^.player = &game_state^.entities[0]
@@ -129,6 +113,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			add_entity(game_state, entity)
 		}
 
+		// 加载图片
 		background_img, err := image.load_from_file(
 			"resources/background_pink_sky.png",
 			{},
@@ -145,10 +130,8 @@ update_and_render: UpdateAndRenderProc : proc(
 		assert(load_err == nil)
 		game_state^.img_hero[0] = hero_img
 
-
+		// 完成
 		game_memory.is_initialized = true
-	} else {
-		game_state = game_memory.game_state
 	}
 
 	game_map :: [5]i32{1, 0, 1, 0, 1}

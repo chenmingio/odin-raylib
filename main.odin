@@ -87,9 +87,9 @@ main :: proc() {
 	assert(permanent_storage != nil)
 	assert(temporary_storage != nil)
 
-	// 构建arena分配器
-	permanent_arena := mem.Arena{}
-	mem.arena_init(&permanent_arena, permanent_storage)
+	// 构建arena分配器. Arena的构造器需要传入arena结构体和data slice，方便你直接操作data区域
+	permanent_arena := mem.Arena{} // 这里储存着Arena结构体，包括元数据
+	mem.arena_init(&permanent_arena, permanent_storage) // 第二个参数就是data slice
 	permanent_arena_allocator := mem.arena_allocator(&permanent_arena)
 	context.allocator = permanent_arena_allocator // 修改默认分配器为Arena分配器
 
