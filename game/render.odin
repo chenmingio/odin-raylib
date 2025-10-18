@@ -66,10 +66,25 @@ draw_image :: proc(x: i32, y: i32, img: ^image.Image, buffer: OffScreenBuffer) {
 	maxY := clamp(y + i32(img.height), minY, buffer.height)
 
 	overlap := i32(maxX - minX)
-	for target_row, source_row in minY ..< maxY {
+	for target_row in minY ..< maxY {
+		// 计算正确的 source 坐标
+		source_row := target_row - y  // 相对于图像的行号
+		
+		// 边界检查
+		if source_row < 0 || source_row >= i32(img.height) {
+			continue
+		}
+		
 		// image.pixels is []byte, so we need to multiply by 4 to get the correct offset
-		source_start_byte := i32(source_row * img.width) * 4
-		source := img.pixels.buf[source_start_byte:source_start_byte + overlap * 4]
+		source_start_byte := source_row * i32(img.width) * 4
+		source_end_byte := source_start_byte + overlap * 4
+		
+		// 确保不越界
+		if source_end_byte > i32(len(img.pixels.buf)) {
+			continue
+		}
+		
+		source := img.pixels.buf[source_start_byte:source_end_byte]
 		source_u32 := transmute([]u32)source
 
 		target_start := target_row * buffer.width + minX

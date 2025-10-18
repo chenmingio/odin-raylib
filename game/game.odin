@@ -2,6 +2,7 @@ package game
 import "core:image"
 import "core:image/png" // 必须保留！用于注册 PNG 加载器
 import "core:math/linalg"
+import "core:mem"
 
 
 V2 :: linalg.Vector2f32
@@ -28,29 +29,6 @@ GameState :: struct {
 	img_hero:     [4]^image.Image,
 }
 
-// 辅助函数：获取活跃实体的 slice
-active_entities :: proc(state: ^GameState) -> []Entity {
-	return state.entities[:state.entity_count]
-}
-
-// 辅助函数：添加实体
-add_entity :: proc(state: ^GameState, entity: Entity) -> bool {
-	if state.entity_count < len(state.entities) {
-		state.entities[state.entity_count] = entity
-		state.entity_count += 1
-		return true
-	}
-	return false // 数组满了
-}
-
-// 辅助函数：删除实体（交换到末尾然后删除）
-remove_entity :: proc(state: ^GameState, index: u32) {
-	if index < state.entity_count {
-		// 把最后一个实体移到被删除的位置
-		state.entities[index] = state.entities[state.entity_count - 1]
-		state.entity_count -= 1
-	}
-}
 
 World :: struct {
 	tileSideInMeters:  f32,
@@ -66,11 +44,11 @@ Rectangle :: struct {
 	max: V2i,
 }
 
-// permanent_storage doesn't equal to data ptr of arena (becuase there is metadata at the beginning of arena),
-// it's assigned when you first allocate something
 Memory :: struct {
 	is_initialized:    bool,
 	permanent_storage: []byte,
+	perm_alloc:        mem.Allocator,
+	temp_alloc:        mem.Allocator,
 }
 
 // 动态函数类型
@@ -113,22 +91,22 @@ update_and_render: UpdateAndRenderProc : proc(
 			add_entity(game_state, entity)
 		}
 
-		// 加载图片
-		background_img, err := image.load_from_file(
-			"resources/background_pink_sky.png",
-			{},
-			context.temp_allocator, // temporary allocator which will be freed as whole
-		)
-		assert(err == nil)
-		game_state^.background = background_img
+		        // 加载图片
+        background_img, err := image.load_from_file(
+            "resources/background_pink_sky.png",
+            {},
+            game_memory.temp_alloc, // 使用主程序传入的临时分配器
+        )
+        assert(err == nil)
+        game_state^.background = background_img
 
-		hero_img, load_err := image.load_from_file(
-			"resources/warrior_blue_run.png",
-			{},
-			context.temp_allocator,
-		)
-		assert(load_err == nil)
-		game_state^.img_hero[0] = hero_img
+        hero_img, load_err := image.load_from_file(
+            "resources/warrior_blue_run.png",
+            {},
+            game_memory.temp_alloc,
+        )
+        assert(load_err == nil)
+        game_state^.img_hero[0] = hero_img
 
 		// 完成
 		game_memory.is_initialized = true
@@ -155,15 +133,17 @@ update_and_render: UpdateAndRenderProc : proc(
 	}
 	game_state^.player^.pos.relXY += move
 
-	for entity_idx in 0 ..< game_state^.entity_count {
-		using entity := game_state^.entities[entity_idx]
-		rel_pos := relative_pos(entity.pos, game_state^.camera_pos) * meter_to_pixel
-		width := i32(entity.size.x * meter_to_pixel)
-		height := i32(entity.size.y * meter_to_pixel)
 
-		assert(entity.type != .Null)
+	// render
+	for entity in active_entities(game_state) {
+		using entity
+		rel_pos := relative_pos(pos, game_state^.camera_pos) * meter_to_pixel
+		width := i32(size.x * meter_to_pixel)
+		height := i32(size.y * meter_to_pixel)
 
-		#partial switch entity.type {
+		assert(type != .Null)
+
+		#partial switch type {
 		case .Player:
 			draw_entity_rectangle(rel_pos, width, height, BLUE, image_buffer)
 		// draw_animation(

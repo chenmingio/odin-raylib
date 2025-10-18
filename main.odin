@@ -69,6 +69,7 @@ main :: proc() {
 	keyboard_controller.isConnected = true
 
 	is_paused := false
+	frame_counter := 0 // 帧计数器，用于控制文件检查频率
 
 	game_code := platform.load_game_code()
 
@@ -91,12 +92,17 @@ main :: proc() {
 	permanent_arena := mem.Arena{} // 这里储存着Arena结构体，包括元数据
 	mem.arena_init(&permanent_arena, permanent_storage) // 第二个参数就是data slice
 	permanent_arena_allocator := mem.arena_allocator(&permanent_arena)
-	context.allocator = permanent_arena_allocator // 修改默认分配器为Arena分配器
+	// 修改默认的allocator会影响odin os/fmt的内存分配，把os信息写到我的memory里去了！
+	// context.allocator = permanent_arena_allocator // 修改默认分配器为Arena分配器
 
 	temporary_arena := mem.Arena{}
 	mem.arena_init(&temporary_arena, temporary_storage)
 	temporary_arena_allocator := mem.arena_allocator(&temporary_arena)
-	context.temp_allocator = temporary_arena_allocator // 临时分配器也用Arena分配器(不同的储存空间)
+	// context.temp_allocator = temporary_arena_allocator // 临时分配器也用Arena分配器(不同的储存空间)
+
+	// 将自定义分配器传递到游戏内存，供游戏代码显式使用
+	game_memory.perm_alloc = permanent_arena_allocator
+	game_memory.temp_alloc = temporary_arena_allocator
 
 	// 录制回放状态
 	// 记录内存的起始点和总大小（使用连续内存块）
@@ -144,15 +150,23 @@ main :: proc() {
 			}
 		}
 
-		// 查看游戏库，如果修改时间晚于上次的记录时间，就重新加载
-		file_info, err := os.stat(platform.GAME_DLL_PATH)
-		if err == os.ERROR_NONE {
-			current_write_time := file_info.modification_time
-			if time.diff(game_code.last_write_time, current_write_time) > 0 {
-				fmt.println("游戏代码已更新，重新加载...")
-				platform.unload_game_code(&game_code)
-				game_code = platform.load_game_code()
-				game_code.last_write_time = current_write_time
+		// 每60帧检查一次文件更新（约1秒检查一次，假设60FPS）
+		frame_counter += 1
+		if frame_counter > 60 {
+			frame_counter = 0
+
+			// 查看游戏库，如果修改时间晚于上次的记录时间，就重新加载
+			file_info, err := os.stat(platform.GAME_DLL_PATH)
+			if err == os.ERROR_NONE {
+				current_write_time := file_info.modification_time
+				if time.diff(game_code.last_write_time, current_write_time) > 0 {
+					fmt.println("游戏代码已更新，重新加载...")
+					platform.unload_game_code(&game_code)
+					game_code = platform.load_game_code()
+					game_code.last_write_time = current_write_time
+				}
+			} else {
+				fmt.println("无法获取文件信息：", err)
 			}
 		}
 		// pause

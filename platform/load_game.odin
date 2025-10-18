@@ -6,7 +6,7 @@ import "core:fmt"
 import "core:os"
 import "core:time"
 
-GAME_DLL_PATH :: "build/game-lib.dylib"
+GAME_DLL_PATH :: "./build/game-lib.dylib"
 
 
 // stub functions is default implementation which does nothing
