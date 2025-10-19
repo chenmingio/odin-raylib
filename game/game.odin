@@ -6,17 +6,47 @@ import "core:mem"
 
 
 V2 :: linalg.Vector2f32
+V3 :: linalg.Vector3f32
 V2i :: [2]i32
+V3i :: [3]i32
 
 chunkSize :: u32(16)
 
+// in meter
 WorldPos :: struct {
-	chunkXY: V2i,
-	relXY:   V2,
+	xyz: V3i,
+	rel: V3,
 }
 
-relative_pos :: proc(x, y: WorldPos) -> V2 {
-	return x.relXY - y.relXY + linalg.to_f32((x.chunkXY - y.chunkXY) * i32(chunkSize))
+ChunkPos :: V3i
+
+canonicalize :: proc(p: WorldPos) -> WorldPos {
+	pos := p
+
+	// 1) 取相对位移的整数部分（向零截断）
+	d := V3i{i32(pos.rel.x), i32(pos.rel.y), i32(pos.rel.z)}
+
+	// 2) 整数部分进位到块坐标
+	pos.xyz += d
+
+	// 3) 从相对位移里扣掉整数部分
+	pos.rel.x -= f32(d[0])
+	pos.rel.y -= f32(d[1])
+	pos.rel.z -= f32(d[2])
+
+	return pos
+}
+
+relative_pos :: proc(p1, p2: WorldPos) -> V3 {
+	di := p1.xyz - p2.xyz // [3]i32
+	df := V3{f32(di.x), f32(di.y), f32(di.z)} // Vector3f32
+	return df + p1.rel - p2.rel
+}
+
+world_pos_add :: proc(p: WorldPos, d: V3) -> WorldPos {
+	p := p
+	p.rel += d
+	return canonicalize(p)
 }
 
 
@@ -75,38 +105,38 @@ update_and_render: UpdateAndRenderProc : proc(
 	if !game_memory.is_initialized {
 		// 初始化工作
 		// 设置初始相机位置
-		game_state^.camera_pos = WorldPos{V2i{0, 0}, V2{0, 0}}
+		game_state^.camera_pos = WorldPos{V3i{}, V3{}}
 
 		// 加载entities
-		player := Entity{WorldPos{V2i{0, 1}, V2{0.5, 0.5}}, EntityType.Player, V2{2.8, 3.8}}
+		player := Entity{WorldPos{V3i{0, 1, 0}, V3{0.5, 0.5, 0}}, EntityType.Player, V2{2.8, 3.8}}
 		add_entity(game_state, player)
 		game_state^.player = &game_state^.entities[0]
 
 		for i in 0 ..< 10 {
 			entity := Entity {
-				WorldPos{V2i{i32(i), 0}, V2{0.5, 0.5}},
+				WorldPos{V3i{i32(i), 0, 0}, V3{0.5, 0.5, 0}},
 				EntityType.Wall,
 				V2{wall_size, wall_size},
 			}
 			add_entity(game_state, entity)
 		}
 
-		        // 加载图片
-        background_img, err := image.load_from_file(
-            "resources/background_pink_sky.png",
-            {},
-            game_memory.temp_alloc, // 使用主程序传入的临时分配器
-        )
-        assert(err == nil)
-        game_state^.background = background_img
+		// 加载图片
+		background_img, err := image.load_from_file(
+			"resources/background_pink_sky.png",
+			{},
+			game_memory.temp_alloc, // 使用主程序传入的临时分配器
+		)
+		assert(err == nil)
+		game_state^.background = background_img
 
-        hero_img, load_err := image.load_from_file(
-            "resources/warrior_blue_run.png",
-            {},
-            game_memory.temp_alloc,
-        )
-        assert(load_err == nil)
-        game_state^.img_hero[0] = hero_img
+		hero_img, load_err := image.load_from_file(
+			"resources/warrior_blue_run.png",
+			{},
+			game_memory.temp_alloc,
+		)
+		assert(load_err == nil)
+		game_state^.img_hero[0] = hero_img
 
 		// 完成
 		game_memory.is_initialized = true
@@ -118,20 +148,20 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	draw_image(0, 0, game_state^.background, image_buffer)
 
-	move := V2{0, 0}
+	move := V3{0, 0, 0}
 	if input.controllers[0].move_up.ended_down {
-		move += V2{0, 0.1}
+		move += V3{0, 1, 0}
 	}
 	if input.controllers[0].move_down.ended_down {
-		move += V2{0, -0.1}
+		move += V3{0, -1, 0}
 	}
 	if input.controllers[0].move_left.ended_down {
-		move += V2{-0.1, 0}
+		move += V3{-1, 0, 0}
 	}
 	if input.controllers[0].move_right.ended_down {
-		move += V2{0.1, 0}
+		move += V3{1, 0, 0}
 	}
-	game_state^.player^.pos.relXY += move
+	game_state^.player^.pos = world_pos_add(game_state^.player^.pos, move)
 
 
 	// render
