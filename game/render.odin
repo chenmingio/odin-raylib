@@ -108,27 +108,34 @@ intersect_images :: proc(a: Rectangle, b: Rectangle) -> (Rectangle, bool) {
 }
 
 
-// flat layout
-draw_animation :: proc(
-	x, y: i32,
-	img: ^image.Image,
-	buffer: OffScreenBuffer,
-	frames: i32,
-	frame_index: i32,
-) {
+// 假设动画图片水平排列，一共有frames帧
+draw_animation :: proc(pos: V3, animate_img: ^AnimateImage, buffer: OffScreenBuffer) {
 
-	frame_img_width := i32(img^.width) / frames
-	source_x_offset := frame_index * frame_img_width
-	for row in 0 ..< img^.height {
-		source_start_byte := i32(row * img^.width) + source_x_offset * 4
-		souce_end_byte := source_start_byte + frame_img_width * 4
-		source := img^.pixels.buf[source_start_byte:souce_end_byte]
+	full_image := animate_img^.image
+
+	// in pixel
+	single_width := i32(full_image^.width) / animate_img^.frame_count
+	source_x_offset := animate_img^.frame_index * single_width
+
+	for row in 0 ..< full_image^.height {
+		// in byte
+		// 起始数据：宽度x行数 + offset
+		source_start_byte := (i32(row * full_image^.width) + source_x_offset) * 4
+		source_end_byte := source_start_byte + single_width * 4
+		source := full_image^.pixels.buf[source_start_byte:source_end_byte]
+
 		source_u32 := transmute([]u32)source
 
-		target_offset := (i32(row) + y) * buffer.width + x
-		target := buffer.data[target_offset:target_offset + frame_img_width]
+		target_offset := (i32(row) + i32(pos.y)) * buffer.width + i32(pos.x)
+		target := buffer.data[target_offset:target_offset + single_width]
 
 		copy(target, source_u32)
+	}
+
+	animate_img^.update_counter =
+		(animate_img^.update_counter + 1) % animate_img^.updates_per_frame
+	if animate_img^.update_counter == 0 {
+		animate_img^.frame_index = (animate_img^.frame_index + 1) % animate_img^.frame_count
 	}
 }
 

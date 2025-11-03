@@ -49,6 +49,17 @@ world_pos_add :: proc(p: WorldPos, d: V3) -> WorldPos {
 	return canonicalize(p)
 }
 
+AnimateImage :: struct {
+	image:             ^image.Image,
+	frame_count:       i32, // 横向分割画幅
+	frame_index:       i32, // 当前画幅
+	updates_per_frame: i32, // 每多少帧移动到下一个frame
+	update_counter:    i32, // 累计了多少帧
+}
+
+HeroImgs :: struct {
+	attack1, attack2, guard, idle, run: AnimateImage,
+}
 
 GameState :: struct {
 	camera_pos:   WorldPos,
@@ -56,7 +67,7 @@ GameState :: struct {
 	entities:     [1000]Entity,
 	entity_count: u32,
 	background:   ^image.Image,
-	img_hero:     [4]^image.Image,
+	img_hero:     HeroImgs,
 }
 
 
@@ -131,12 +142,13 @@ update_and_render: UpdateAndRenderProc : proc(
 		game_state^.background = background_img
 
 		hero_img, load_err := image.load_from_file(
-			"resources/warrior_blue_run.png",
+			"resources/Units/Black Units/Warrior/Warrior_Run.png",
 			{},
 			game_memory.temp_alloc,
 		)
+
 		assert(load_err == nil)
-		game_state^.img_hero[0] = hero_img
+		game_state^.img_hero.run = AnimateImage{hero_img, 6, 0, 6, 0}
 
 		// 完成
 		game_memory.is_initialized = true
@@ -176,14 +188,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		#partial switch type {
 		case .Player:
 			draw_entity_rectangle(rel_pos, width, height, BLUE, image_buffer)
-		// draw_animation(
-		// 	i32(rel_pos.x),
-		// 	i32(rel_pos.y),
-		// 	game_state^.img_hero[entity_idx],
-		// 	image_buffer,
-		// 	4,
-		// 	i32(entity_idx),
-		// )
+			draw_animation(rel_pos, &game_state^.img_hero.run, image_buffer)
 		case .Wall:
 			draw_entity_rectangle(rel_pos, width, height, GREEN, image_buffer)
 		case .Tree:

@@ -34,3 +34,6 @@ Temporary Items
 /build
 
 *.dat
+
+*.png
+*.aseprite
