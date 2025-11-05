@@ -12,6 +12,27 @@ V3i :: [3]i32
 
 chunkSize :: u32(16)
 
+SCALE :: f32(100.0)
+
+meter_to_pixel_f32 :: proc(x: f32) -> f32 {
+	return x * SCALE
+}
+
+meter_to_pixel_v2 :: proc(v: V2) -> V2 {
+	return V2{v.x * SCALE, v.y * SCALE}
+}
+
+meter_to_pixel_v3 :: proc(v: V3) -> V3 {
+	return V3{v.x * SCALE, v.y * SCALE, v.z * SCALE}
+}
+
+meter_to_pixel :: proc {
+	meter_to_pixel_f32,
+	meter_to_pixel_v2,
+	meter_to_pixel_v3,
+}
+
+
 // in meter
 WorldPos :: struct {
 	xyz: V3i,
@@ -76,7 +97,7 @@ World :: struct {
 	chunkSideInMeters: f32,
 }
 
-wall_size :: f32(2.0)
+wall_size :: f32(3.0)
 
 ScreenPos :: V2
 
@@ -119,13 +140,14 @@ update_and_render: UpdateAndRenderProc : proc(
 		game_state^.camera_pos = WorldPos{V3i{}, V3{}}
 
 		// 加载entities
-		player := Entity{WorldPos{V3i{0, 1, 0}, V3{0.5, 0.5, 0}}, EntityType.Player, V2{2.8, 3.8}}
+		// 以米为单位
+		player := Entity{WorldPos{V3i{0, 0, 0}, V3{0, 0, 0}}, EntityType.Player, V2{0.6, 1.8}}
 		add_entity(game_state, player)
 		game_state^.player = &game_state^.entities[0]
 
 		for i in 0 ..< 10 {
 			entity := Entity {
-				WorldPos{V3i{i32(i), 0, 0}, V3{0.5, 0.5, 0}},
+				WorldPos{V3i{i32(i), 0, 0}, V3{5, 5, 0}},
 				EntityType.Wall,
 				V2{wall_size, wall_size},
 			}
@@ -155,10 +177,9 @@ update_and_render: UpdateAndRenderProc : proc(
 	}
 
 	game_map :: [5]i32{1, 0, 1, 0, 1}
-	meter_to_pixel :: f32(20.0)
-	draw_rectangle(0, 0, 800, 600, WHITE, image_buffer)
+	draw_rectangle(0, 0, image_buffer.width, image_buffer.height, WHITE, image_buffer)
 
-	draw_image(0, 0, game_state^.background, image_buffer)
+	// draw_image(0, 0, game_state^.background, image_buffer)
 
 	move := V3{0, 0, 0}
 	if input.controllers[0].move_up.ended_down {
@@ -173,24 +194,32 @@ update_and_render: UpdateAndRenderProc : proc(
 	if input.controllers[0].move_right.ended_down {
 		move += V3{1, 0, 0}
 	}
-	game_state^.player^.pos = world_pos_add(game_state^.player^.pos, move)
-
+	game_state^.player^.pos = world_pos_add(game_state^.player^.pos, move * 0.1)
 
 	// render
+
+	draw_line_x(image_buffer.height / 2, image_buffer)
+	draw_line_y(image_buffer.width / 2, image_buffer)
+
 	for entity in active_entities(game_state) {
 		using entity
-		rel_pos := relative_pos(pos, game_state^.camera_pos) * meter_to_pixel
-		width := i32(size.x * meter_to_pixel)
-		height := i32(size.y * meter_to_pixel)
+		rel_pos := meter_to_pixel(relative_pos(pos, game_state^.camera_pos))
+		width :=
+			entity.type == EntityType.Player ? i32(game_state^.img_hero.run.image^.width) / game_state^.img_hero.run.frame_count : i32(meter_to_pixel(size.x))
+		height :=
+			entity.type == EntityType.Player ? i32(game_state^.img_hero.run.image^.height) : i32(meter_to_pixel(size.y))
 
-		assert(type != .Null)
+		buffer_xy :=
+			V2i{image_buffer.width / 2, image_buffer.height / 2} +
+			V2i{i32(rel_pos.x), i32(rel_pos.y * -1)} -
+			V2i{width / 2, height}
 
 		#partial switch type {
 		case .Player:
-			draw_entity_rectangle(rel_pos, width, height, BLUE, image_buffer)
-			draw_animation(rel_pos, &game_state^.img_hero.run, image_buffer)
+			draw_rectangle(buffer_xy.x, buffer_xy.y, width, height, BLUE, image_buffer)
+			draw_animation(buffer_xy.x, buffer_xy.y, &game_state^.img_hero.run, image_buffer)
 		case .Wall:
-			draw_entity_rectangle(rel_pos, width, height, GREEN, image_buffer)
+			draw_rectangle(buffer_xy.x, buffer_xy.y, width, height, GREEN, image_buffer)
 		case .Tree:
 		case .Enemy:
 		}

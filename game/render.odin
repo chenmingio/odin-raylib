@@ -22,7 +22,7 @@ OffScreenBuffer :: struct {
 }
 
 // pos is at the gravity center of entity
-draw_entity_rectangle :: proc(
+draw_entity_as_rectangle :: proc(
 	pos: V3,
 	width: i32,
 	height: i32,
@@ -56,6 +56,17 @@ draw_rectangle :: proc(
 		rowOffset := row * buffer.width
 		pixels := buffer.data[rowOffset + minX:rowOffset + maxX]
 		slice.fill(pixels, color)
+	}
+}
+
+draw_line_x :: proc(y: i32, buffer: OffScreenBuffer) {
+	pixels := buffer.data[y * buffer.width:(y + 1) * buffer.width]
+	slice.fill(pixels, RED)
+}
+
+draw_line_y :: proc(x: i32, buffer: OffScreenBuffer) {
+	for row in 0 ..< buffer.height {
+		buffer.data[row * buffer.width + x] = RED
 	}
 }
 
@@ -94,6 +105,42 @@ draw_image :: proc(x: i32, y: i32, img: ^image.Image, buffer: OffScreenBuffer) {
 	}
 }
 
+// 假设动画图片水平排列，一共有frames帧
+draw_animation :: proc(x, y: i32, animate_img: ^AnimateImage, buffer: OffScreenBuffer) {
+
+	full_image := animate_img^.image
+
+	// in pixel
+	single_width := i32(full_image^.width) / animate_img^.frame_count
+	source_x_offset := animate_img^.frame_index * single_width
+
+	// buffer上图片的四个角
+	minX := clamp(x, 0, buffer.width)
+	maxX := clamp(x + single_width, minX, buffer.width)
+	minY := clamp(y, 0, buffer.height)
+	maxY := clamp(y + i32(full_image^.height), minY, buffer.height)
+
+	for source_row in 0 ..< (maxY - minY) {
+		// 起始数据：宽度x行数 + offset
+		source_start := source_row * i32(full_image^.width) + source_x_offset
+		source_end := source_start + single_width
+		source := full_image^.pixels.buf[source_start * 4:source_end * 4] // buf为byte
+		// image.pixels是[]byte，而目标buffer.data是[]u32，所以需要转换
+		source_u32 := transmute([]u32)source
+
+		target_offset := i32(minY + source_row) * buffer.width + i32(minX)
+		target := buffer.data[target_offset:target_offset + (maxX - minX)]
+
+		copy(target, source_u32)
+	}
+
+	animate_img^.update_counter =
+		(animate_img^.update_counter + 1) % animate_img^.updates_per_frame
+	if animate_img^.update_counter == 0 {
+		animate_img^.frame_index = (animate_img^.frame_index + 1) % animate_img^.frame_count
+	}
+}
+
 intersect_images :: proc(a: Rectangle, b: Rectangle) -> (Rectangle, bool) {
 	intersection := Rectangle{}
 
@@ -105,38 +152,6 @@ intersect_images :: proc(a: Rectangle, b: Rectangle) -> (Rectangle, bool) {
 	exists := intersection.min.x < intersection.max.x && intersection.min.y < intersection.max.y
 
 	return intersection, exists
-}
-
-
-// 假设动画图片水平排列，一共有frames帧
-draw_animation :: proc(pos: V3, animate_img: ^AnimateImage, buffer: OffScreenBuffer) {
-
-	full_image := animate_img^.image
-
-	// in pixel
-	single_width := i32(full_image^.width) / animate_img^.frame_count
-	source_x_offset := animate_img^.frame_index * single_width
-
-	for row in 0 ..< full_image^.height {
-		// in byte
-		// 起始数据：宽度x行数 + offset
-		source_start_byte := (i32(row * full_image^.width) + source_x_offset) * 4
-		source_end_byte := source_start_byte + single_width * 4
-		source := full_image^.pixels.buf[source_start_byte:source_end_byte]
-
-		source_u32 := transmute([]u32)source
-
-		target_offset := (i32(row) + i32(pos.y)) * buffer.width + i32(pos.x)
-		target := buffer.data[target_offset:target_offset + single_width]
-
-		copy(target, source_u32)
-	}
-
-	animate_img^.update_counter =
-		(animate_img^.update_counter + 1) % animate_img^.updates_per_frame
-	if animate_img^.update_counter == 0 {
-		animate_img^.frame_index = (animate_img^.frame_index + 1) % animate_img^.frame_count
-	}
 }
 
 
