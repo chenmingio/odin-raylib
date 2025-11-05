@@ -203,23 +203,31 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	for entity in active_entities(game_state) {
 		using entity
-		rel_pos := meter_to_pixel(relative_pos(pos, game_state^.camera_pos))
-		width :=
-			entity.type == EntityType.Player ? i32(game_state^.img_hero.run.image^.width) / game_state^.img_hero.run.frame_count : i32(meter_to_pixel(size.x))
-		height :=
-			entity.type == EntityType.Player ? i32(game_state^.img_hero.run.image^.height) : i32(meter_to_pixel(size.y))
 
-		buffer_xy :=
-			V2i{image_buffer.width / 2, image_buffer.height / 2} +
-			V2i{i32(rel_pos.x), i32(rel_pos.y * -1)} -
-			V2i{width / 2, height}
+		// 屏幕中心与相对像素偏移
+		screen_center := V2i{image_buffer.width / 2, image_buffer.height / 2}
+		rel_pos_px := meter_to_pixel(relative_pos(pos, game_state^.camera_pos)) // V3
+		rel_px := V2i{i32(rel_pos_px.x), -i32(rel_pos_px.y)} // 上为负
+
+		// 是否玩家
+		is_player := type == EntityType.Player
+
+		// 玩家帧尺寸 or 一般实体尺寸（米→像素）
+		frame_w :=
+			i32(game_state^.img_hero.run.image^.width) / game_state^.img_hero.run.frame_count
+		frame_h := i32(game_state^.img_hero.run.image^.height)
+		size_px :=
+			is_player ? V2i{frame_w, frame_h} : V2i{i32(meter_to_pixel(size.x)), i32(meter_to_pixel(size.y))}
+
+		// 左上角 = 屏幕中心 + 相对偏移 - 重心到左上角调整(半宽, 全高)
+		top_left := screen_center + rel_px - V2i{size_px.x / 2, size_px.y}
 
 		#partial switch type {
 		case .Player:
-			draw_rectangle(buffer_xy.x, buffer_xy.y, width, height, BLUE, image_buffer)
-			draw_animation(buffer_xy.x, buffer_xy.y, &game_state^.img_hero.run, image_buffer)
+			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, BLUE, image_buffer)
+			draw_animation(top_left.x, top_left.y, &game_state^.img_hero.run, image_buffer)
 		case .Wall:
-			draw_rectangle(buffer_xy.x, buffer_xy.y, width, height, GREEN, image_buffer)
+			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, GREEN, image_buffer)
 		case .Tree:
 		case .Enemy:
 		}
