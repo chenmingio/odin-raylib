@@ -172,6 +172,14 @@ update_and_render: UpdateAndRenderProc : proc(
 		assert(load_err == nil)
 		game_state^.img_hero.run = AnimateImage{hero_img, 6, 0, 6, 0}
 
+		hero_img, load_err = image.load_from_file(
+			"resources/Buildings/Black Buildings/Castle.png",// "resources/Units/Black Units/Warrior/Warrior_Idle.png",
+			{},
+			game_memory.temp_alloc,
+		)
+		assert(load_err == nil)
+		game_state^.img_hero.idle = AnimateImage{hero_img, 8, 0, 6, 0}
+
 		// 完成
 		game_memory.is_initialized = true
 	}
@@ -194,6 +202,9 @@ update_and_render: UpdateAndRenderProc : proc(
 	if input.controllers[0].move_right.ended_down {
 		move += V3{1, 0, 0}
 	}
+
+	is_moving := move.x != 0 || move.y != 0 || move.z != 0
+
 	game_state^.player^.pos = world_pos_add(game_state^.player^.pos, move * 0.1)
 
 	// render
@@ -211,21 +222,21 @@ update_and_render: UpdateAndRenderProc : proc(
 
 		// 是否玩家
 		is_player := type == EntityType.Player
+		animate := is_moving ? &game_state^.img_hero.run : &game_state^.img_hero.idle
 
 		// 玩家帧尺寸 or 一般实体尺寸（米→像素）
-		frame_w :=
-			i32(game_state^.img_hero.run.image^.width) / game_state^.img_hero.run.frame_count
-		frame_h := i32(game_state^.img_hero.run.image^.height)
-		size_px :=
-			is_player ? V2i{frame_w, frame_h} : V2i{i32(meter_to_pixel(size.x)), i32(meter_to_pixel(size.y))}
+		frame_w := i32(animate.image^.width) / animate.frame_count
+		frame_h := i32(animate.image^.height)
+		size_px := V2i{i32(meter_to_pixel(size.x)), i32(meter_to_pixel(size.y))}
 
 		// 左上角 = 屏幕中心 + 相对偏移 - 重心到左上角调整(半宽, 全高)
 		top_left := screen_center + rel_px - V2i{size_px.x / 2, size_px.y}
 
 		#partial switch type {
 		case .Player:
-			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, BLUE, image_buffer)
-			draw_animation(top_left.x, top_left.y, &game_state^.img_hero.run, image_buffer)
+			// draw_animation(top_left.x, top_left.y, animate, image_buffer)
+			draw_image(top_left.x, top_left.y, game_state^.img_hero.idle.image, image_buffer)
+			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, RED, image_buffer, true)
 		case .Wall:
 			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, GREEN, image_buffer)
 		case .Tree:

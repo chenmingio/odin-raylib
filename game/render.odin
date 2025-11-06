@@ -21,20 +21,6 @@ OffScreenBuffer :: struct {
 	height: i32,
 }
 
-// pos is at the gravity center of entity
-draw_entity_as_rectangle :: proc(
-	pos: V3,
-	width: i32,
-	height: i32,
-	color: u32,
-	buffer: OffScreenBuffer,
-) {
-	center_x := buffer.width / 2 + i32(pos.x)
-	center_y := buffer.height / 2 - i32(pos.y)
-
-	draw_rectangle(center_x - width / 2, center_y - height / 2, width, height, color, buffer)
-}
-
 // for screen space, 00 is top left, 11 is bottom right
 // x, y are top left
 draw_rectangle :: proc(
@@ -44,6 +30,7 @@ draw_rectangle :: proc(
 	height: i32,
 	color: u32,
 	buffer: OffScreenBuffer,
+	is_line: bool = false,
 ) {
 	x := max(0, x)
 	y := max(0, y)
@@ -53,9 +40,14 @@ draw_rectangle :: proc(
 	minY := min(y, buffer.height)
 	maxY := min(y + height, buffer.height)
 	for row in minY ..< maxY {
-		rowOffset := row * buffer.width
-		pixels := buffer.data[rowOffset + minX:rowOffset + maxX]
-		slice.fill(pixels, color)
+		rowsOffset := row * buffer.width
+		if is_line && (row != minY && row != maxY - 1) {
+			buffer.data[rowsOffset + minX] = color
+			buffer.data[rowsOffset + maxX] = color
+		} else {
+			pixels := buffer.data[rowsOffset + minX:rowsOffset + maxX]
+			slice.fill(pixels, color)
+		}
 	}
 }
 
@@ -71,64 +63,66 @@ draw_line_y :: proc(x: i32, buffer: OffScreenBuffer) {
 }
 
 draw_image :: proc(x: i32, y: i32, img: ^image.Image, buffer: OffScreenBuffer) {
+	// buffer上的位置
 	minX := clamp(x, 0, buffer.width)
 	maxX := clamp(x + i32(img.width), minX, buffer.width)
 	minY := clamp(y, 0, buffer.height)
 	maxY := clamp(y + i32(img.height), minY, buffer.height)
 
-	overlap := i32(maxX - minX)
+	// 图像上开始读取的位置
+	offset_x := x >= 0 ? 0 : -x
+	offset_y := y >= 0 ? 0 : -y
+
 	for target_row in minY ..< maxY {
 		// 计算正确的 source 坐标
 		source_row := target_row - y // 相对于图像的行号
 
-		// 边界检查
-		if source_row < 0 || source_row >= i32(img.height) {
-			continue
-		}
-
 		// image.pixels is []byte, so we need to multiply by 4 to get the correct offset
-		source_start_byte := source_row * i32(img.width) * 4
-		source_end_byte := source_start_byte + overlap * 4
+		source_start := (source_row) * i32(img.width) + offset_x
+		source_end := source_start + (maxX - minX)
 
-		// 确保不越界
-		if source_end_byte > i32(len(img.pixels.buf)) {
-			continue
-		}
-
-		source := img.pixels.buf[source_start_byte:source_end_byte]
+		source := img.pixels.buf[source_start * 4:source_end * 4]
 		source_u32 := transmute([]u32)source
 
 		target_start := target_row * buffer.width + minX
-		target := buffer.data[target_start:target_start + overlap]
+		target := buffer.data[target_start:target_start + maxX - minX]
 
 		copy(target, source_u32)
 	}
 }
 
 // 假设动画图片水平排列，一共有frames帧
-draw_animation :: proc(x, y: i32, animate_img: ^AnimateImage, buffer: OffScreenBuffer) {
+draw_animation :: proc(pos: V2i, size: V2i, animate_img: ^AnimateImage, buffer: OffScreenBuffer) {
 
 	full_image := animate_img^.image
 
 	// in pixel
-	single_width := i32(full_image^.width) / animate_img^.frame_count
-	source_x_offset := animate_img^.frame_index * single_width
+	single_frame_width := i32(full_image^.width) / animate_img^.frame_count
+	frame_offset := V2i {
+		// frame偏移+frame内部图像偏移
+		animate_img^.frame_index * single_frame_width + (single_frame_width - size.x) / 2,
+		(i32(full_image^.height) - size.y) / 2,
+	}
 
-	// buffer上图片的四个角
-	minX := clamp(x, 0, buffer.width)
-	maxX := clamp(x + single_width, minX, buffer.width)
-	minY := clamp(y, 0, buffer.height)
-	maxY := clamp(y + i32(full_image^.height), minY, buffer.height)
+	// 定位图片在buffer上的四个角
+	minX := clamp(pos.x, 0, buffer.width)
+	maxX := clamp(pos.x + size.x, minX, buffer.width)
+	minY := clamp(pos.y, 0, buffer.height)
+	maxY := clamp(pos.y + size.y, minY, buffer.height)
 
-	for source_row in 0 ..< (maxY - minY) {
+	source_offset := V2i{max(-pos.x, 0), max(-pos.y, 0)}
+
+	for target_row in minY ..< maxY {
 		// 起始数据：宽度x行数 + offset
-		source_start := source_row * i32(full_image^.width) + source_x_offset
-		source_end := source_start + single_width
+		idx := target_row - minY
+		source_start :=
+			(source_offset.y + idx + frame_offset.y) * i32(full_image^.width) + frame_offset.x
+		source_end := source_start + single_frame_width // 最大值
 		source := full_image^.pixels.buf[source_start * 4:source_end * 4] // buf为byte
 		// image.pixels是[]byte，而目标buffer.data是[]u32，所以需要转换
 		source_u32 := transmute([]u32)source
 
-		target_offset := i32(minY + source_row) * buffer.width + i32(minX)
+		target_offset := minY * buffer.width + minX
 		target := buffer.data[target_offset:target_offset + (maxX - minX)]
 
 		copy(target, source_u32)
