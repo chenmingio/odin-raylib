@@ -62,20 +62,61 @@ draw_line_y :: proc(x: i32, buffer: OffScreenBuffer) {
 	}
 }
 
-draw_image :: proc(x: i32, y: i32, img: ^image.Image, buffer: OffScreenBuffer) {
-	// buffer上的位置
-	minX := clamp(x, 0, buffer.width)
-	maxX := clamp(x + i32(img.width), minX, buffer.width)
-	minY := clamp(y, 0, buffer.height)
-	maxY := clamp(y + i32(img.height), minY, buffer.height)
+blend :: proc(target, source: []u32) {
+	for i in 0 ..< len(target) {
+		// 先把内部像素格式转换成标准 RGBA（与上面的常量定义一致）
+		c_dst := intrinsics.byte_swap(target[i])
+		c_src := intrinsics.byte_swap(source[i])
+
+		rd := c_dst >> 24 & 0xFF
+		gd := c_dst >> 16 & 0xFF
+		bd := c_dst >> 8 & 0xFF
+		ad := c_dst & 0xFF
+
+		rs := c_src >> 24 & 0xFF
+		gs := c_src >> 16 & 0xFF
+		bs := c_src >> 8 & 0xFF
+		as := c_src & 0xFF
+
+		// 非预乘 alpha: Cout = Cs * As + Cd * (1 - As)
+		r_out := (rd * (255 - as) + rs * as) / 255
+		g_out := (gd * (255 - as) + gs * as) / 255
+		b_out := (bd * (255 - as) + bs * as) / 255
+		// Aout = As + Ad * (1 - As)
+		a_out := as + (ad * (255 - as)) / 255
+
+		c_out := (r_out << 24) | (g_out << 16) | (b_out << 8) | a_out
+		// 再转换回内部像素格式
+		target[i] = intrinsics.byte_swap(c_out)
+	}
+}
+
+// size: 图片crop的尺寸
+draw_image :: proc(
+	pos: V2i,
+	img: ^image.Image,
+	buffer: OffScreenBuffer,
+	size: V2i = V2i{},
+	offset: V2i = V2i{},
+) {
+
+	assert(offset.x >= 0 && offset.y >= 0)
+	assert(size.x + offset.x <= i32(img^.width))
+	assert(size.y + offset.y <= i32(img^.height))
+
+	// buffer上从哪里开始画
+	minX := clamp(pos.x, 0, buffer.width)
+	maxX := clamp(pos.x + i32(size.x), minX, buffer.width)
+	minY := clamp(pos.y, 0, buffer.height)
+	maxY := clamp(pos.y + i32(size.y), minY, buffer.height)
 
 	// 图像上开始读取的位置
-	offset_x := x >= 0 ? 0 : -x
-	offset_y := y >= 0 ? 0 : -y
+	offset_x := (pos.x >= 0 ? 0 : -pos.x) + offset.x
+	offset_y := (pos.y >= 0 ? 0 : -pos.y) + offset.y
 
 	for target_row in minY ..< maxY {
 		// 计算正确的 source 坐标
-		source_row := target_row - y // 相对于图像的行号
+		source_row := target_row - pos.y + offset.y // 相对于图像的行号
 
 		// image.pixels is []byte, so we need to multiply by 4 to get the correct offset
 		source_start := (source_row) * i32(img.width) + offset_x
@@ -87,46 +128,23 @@ draw_image :: proc(x: i32, y: i32, img: ^image.Image, buffer: OffScreenBuffer) {
 		target_start := target_row * buffer.width + minX
 		target := buffer.data[target_start:target_start + maxX - minX]
 
-		copy(target, source_u32)
+		blend(target, source_u32)
 	}
 }
 
 // 假设动画图片水平排列，一共有frames帧
 draw_animation :: proc(pos: V2i, size: V2i, animate_img: ^AnimateImage, buffer: OffScreenBuffer) {
-
-	full_image := animate_img^.image
+	image := animate_img^.image
 
 	// in pixel
-	single_frame_width := i32(full_image^.width) / animate_img^.frame_count
+	single_frame_width := i32(image^.width) / animate_img^.frame_count
 	frame_offset := V2i {
 		// frame偏移+frame内部图像偏移
 		animate_img^.frame_index * single_frame_width + (single_frame_width - size.x) / 2,
-		(i32(full_image^.height) - size.y) / 2,
+		(i32(image^.height) - size.y) / 2,
 	}
 
-	// 定位图片在buffer上的四个角
-	minX := clamp(pos.x, 0, buffer.width)
-	maxX := clamp(pos.x + size.x, minX, buffer.width)
-	minY := clamp(pos.y, 0, buffer.height)
-	maxY := clamp(pos.y + size.y, minY, buffer.height)
-
-	source_offset := V2i{max(-pos.x, 0), max(-pos.y, 0)}
-
-	for target_row in minY ..< maxY {
-		// 起始数据：宽度x行数 + offset
-		idx := target_row - minY
-		source_start :=
-			(source_offset.y + idx + frame_offset.y) * i32(full_image^.width) + frame_offset.x
-		source_end := source_start + single_frame_width // 最大值
-		source := full_image^.pixels.buf[source_start * 4:source_end * 4] // buf为byte
-		// image.pixels是[]byte，而目标buffer.data是[]u32，所以需要转换
-		source_u32 := transmute([]u32)source
-
-		target_offset := minY * buffer.width + minX
-		target := buffer.data[target_offset:target_offset + (maxX - minX)]
-
-		copy(target, source_u32)
-	}
+	draw_image(pos, image, buffer, size, frame_offset)
 
 	animate_img^.update_counter =
 		(animate_img^.update_counter + 1) % animate_img^.updates_per_frame

@@ -141,7 +141,7 @@ update_and_render: UpdateAndRenderProc : proc(
 
 		// 加载entities
 		// 以米为单位
-		player := Entity{WorldPos{V3i{0, 0, 0}, V3{0, 0, 0}}, EntityType.Player, V2{0.6, 1.8}}
+		player := Entity{WorldPos{V3i{0, 0, 0}, V3{0, 0, 0}}, EntityType.Player, V2{1.0, 1.2}}
 		add_entity(game_state, player)
 		game_state^.player = &game_state^.entities[0]
 
@@ -173,7 +173,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		game_state^.img_hero.run = AnimateImage{hero_img, 6, 0, 6, 0}
 
 		hero_img, load_err = image.load_from_file(
-			"resources/Buildings/Black Buildings/Castle.png",// "resources/Units/Black Units/Warrior/Warrior_Idle.png",
+			"resources/Units/Black Units/Warrior/Warrior_Idle.png", // "resources/Buildings/Black Buildings/Castle.png", 
 			{},
 			game_memory.temp_alloc,
 		)
@@ -185,9 +185,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	}
 
 	game_map :: [5]i32{1, 0, 1, 0, 1}
-	draw_rectangle(0, 0, image_buffer.width, image_buffer.height, WHITE, image_buffer)
-
-	// draw_image(0, 0, game_state^.background, image_buffer)
+	draw_rectangle(0, 0, image_buffer.width, image_buffer.height, GREEN, image_buffer)
 
 	move := V3{0, 0, 0}
 	if input.controllers[0].move_up.ended_down {
@@ -234,8 +232,7 @@ update_and_render: UpdateAndRenderProc : proc(
 
 		#partial switch type {
 		case .Player:
-			// draw_animation(top_left.x, top_left.y, animate, image_buffer)
-			draw_image(top_left.x, top_left.y, game_state^.img_hero.idle.image, image_buffer)
+			draw_animation(top_left, size_px, animate, image_buffer)
 			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, RED, image_buffer, true)
 		case .Wall:
 			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, GREEN, image_buffer)
