@@ -101,14 +101,12 @@ draw_image :: proc(
 ) {
 
 	assert(offset.x >= 0 && offset.y >= 0)
-	assert(size.x + offset.x <= i32(img^.width))
-	assert(size.y + offset.y <= i32(img^.height))
 
 	// buffer上从哪里开始画
 	minX := clamp(pos.x, 0, buffer.width)
-	maxX := clamp(pos.x + i32(size.x), minX, buffer.width)
+	maxX := clamp(pos.x + min(size.x, i32(img^.width) - offset.x), minX, buffer.width)
 	minY := clamp(pos.y, 0, buffer.height)
-	maxY := clamp(pos.y + i32(size.y), minY, buffer.height)
+	maxY := clamp(pos.y + min(size.y, i32(img^.height) - offset.y), minY, buffer.height)
 
 	// 图像上开始读取的位置
 	offset_x := (pos.x >= 0 ? 0 : -pos.x) + offset.x
