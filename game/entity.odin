@@ -10,10 +10,46 @@ EntityType :: enum {
 	Wall,
 }
 
+EntityStatus :: enum {
+	Null,
+	Idle,
+	Walk,
+	Run,
+	Attack_1,
+	Attack_2,
+	Guard,
+}
+
+status_names := [EntityStatus]string {
+	.Null     = "Null",
+	.Idle     = "Idle",
+	.Walk     = "Walk",
+	.Run      = "Run",
+	.Attack_1 = "Attack 1",
+	.Attack_2 = "Attack 2",
+	.Guard    = "Guard",
+}
+
+entity_status_to_name :: proc(s: EntityStatus) -> string {
+	return status_names[s]
+}
+
+name_to_entity_status :: proc(name: string) -> EntityStatus {
+	for s in EntityStatus {
+		if status_names[s] == name {
+			return s
+		}
+	}
+	return .Null
+}
+
 Entity :: struct {
-	pos:  WorldPos,
-	type: EntityType,
-	size: V2,
+	pos:            WorldPos,
+	type:           EntityType,
+	size:           V2,
+	status:         EntityStatus,
+	anim_frame_idx: i32,
+	anim_time:      i32, // ms
 }
 
 

@@ -151,7 +151,8 @@ init_audio :: proc() -> rl.AudioStream {
 
 // 每帧更新音频
 update_audio :: proc(is_paused: bool) {
-	if !is_paused {
+	if false {
+		// if !is_paused {
 		// 每帧生成一帧的音频数据，避免过度生产
 		sample_count := MAX_SAMPLES_PER_UPDATE * CHANNELS
 		ring_buffer_produce(ring_output.samples, &ring_output.write_index, sample_count, 440.0)

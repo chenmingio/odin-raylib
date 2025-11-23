@@ -92,7 +92,38 @@ blend :: proc(target, source: []u32) {
 }
 
 // size: 图片crop的尺寸
-draw_image :: proc(
+draw_image_simple :: proc(pos: V2i, img: ^image.Image, buffer: OffScreenBuffer) {
+
+	// buffer上从哪里开始画
+	minX := clamp(pos.x, 0, buffer.width)
+	maxX := clamp(pos.x + i32(img^.width), minX, buffer.width)
+	minY := clamp(pos.y, 0, buffer.height)
+	maxY := clamp(pos.y + i32(img^.height), minY, buffer.height)
+
+	// 图像上开始读取的位置
+	offset_x := (pos.x >= 0 ? 0 : -pos.x)
+	offset_y := (pos.y >= 0 ? 0 : -pos.y)
+
+	for target_row in minY ..< maxY {
+		// 计算正确的 source 坐标
+		source_row := target_row - pos.y // 相对于图像的行号
+
+		// image.pixels is []byte, so we need to multiply by 4 to get the correct offset
+		source_start := (source_row) * i32(img^.width) + offset_x
+		source_end := source_start + (maxX - minX)
+
+		source := img^.pixels.buf[source_start * 4:source_end * 4]
+		source_u32 := transmute([]u32)source
+
+		target_start := target_row * buffer.width + minX
+		target := buffer.data[target_start:target_start + maxX - minX]
+
+		blend(target, source_u32)
+	}
+}
+
+// size: 图片crop的尺寸
+draw_image_corp :: proc(
 	pos: V2i,
 	img: ^image.Image,
 	buffer: OffScreenBuffer,
@@ -131,24 +162,31 @@ draw_image :: proc(
 }
 
 // 假设动画图片水平排列，一共有frames帧
-draw_animation :: proc(pos: V2i, size: V2i, animate_img: ^AnimateImage, buffer: OffScreenBuffer) {
-	image := animate_img^.image
+draw_animation :: proc(
+	pos: V2i,
+	animation: Animation,
+	entity: ^Entity,
+	buffer: OffScreenBuffer,
+	dt: f32,
+) {
+	image := animation.image
+	status := entity.status
 
 	// in pixel
-	single_frame_width := i32(image^.width) / animate_img^.frame_count
-	frame_offset := V2i {
-		// frame偏移+frame内部图像偏移
-		animate_img^.frame_index * single_frame_width + (single_frame_width - size.x) / 2,
-		(i32(image^.height) - size.y) / 2,
+	clips := animation.clips[status].frames
+	assert(len(clips) > 0)
+
+	entity.anim_time += i32(dt * 1000)
+	for entity.anim_time >= clips[entity.anim_frame_idx].duration {
+		entity.anim_time -= clips[entity.anim_frame_idx].duration
+		entity.anim_frame_idx = (entity.anim_frame_idx + 1) % i32(len(clips))
 	}
 
-	draw_image(pos, image, buffer, size, frame_offset)
+	frame := clips[entity.anim_frame_idx]
+	size := V2i{i32(frame.frame.w), i32(frame.frame.h)}
+	offset := V2i{i32(frame.frame.x), i32(frame.frame.y)}
 
-	animate_img^.update_counter =
-		(animate_img^.update_counter + 1) % animate_img^.updates_per_frame
-	if animate_img^.update_counter == 0 {
-		animate_img^.frame_index = (animate_img^.frame_index + 1) % animate_img^.frame_count
-	}
+	draw_image_corp(pos, image, buffer, size, offset)
 }
 
 intersect_images :: proc(a: Rectangle, b: Rectangle) -> (Rectangle, bool) {

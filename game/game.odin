@@ -1,8 +1,11 @@
 package game
+
+import "core:encoding/json" // 必须保留！用于注册 PNG 加载器
 import "core:image"
-import "core:image/png" // 必须保留！用于注册 PNG 加载器
+import "core:image/png"
 import "core:math/linalg"
 import "core:mem"
+import "core:os"
 
 
 V2 :: linalg.Vector2f32
@@ -70,17 +73,6 @@ world_pos_add :: proc(p: WorldPos, d: V3) -> WorldPos {
 	return canonicalize(p)
 }
 
-AnimateImage :: struct {
-	image:             ^image.Image,
-	frame_count:       i32, // 横向分割画幅
-	frame_index:       i32, // 当前画幅
-	updates_per_frame: i32, // 每多少帧移动到下一个frame
-	update_counter:    i32, // 累计了多少帧
-}
-
-HeroImgs :: struct {
-	attack1, attack2, guard, idle, run: AnimateImage,
-}
 
 GameState :: struct {
 	camera_pos:   WorldPos,
@@ -88,7 +80,14 @@ GameState :: struct {
 	entities:     [1000]Entity,
 	entity_count: u32,
 	background:   ^image.Image,
-	img_hero:     HeroImgs,
+	unit_animate: Animation,
+	tilemap1:     ^image.Image,
+}
+
+CorppedImage :: struct {
+	image:  ^image.Image,
+	size:   V2i,
+	offset: V2i,
 }
 
 
@@ -141,7 +140,14 @@ update_and_render: UpdateAndRenderProc : proc(
 
 		// 加载entities
 		// 以米为单位
-		player := Entity{WorldPos{V3i{0, 0, 0}, V3{0, 0, 0}}, EntityType.Player, V2{1.0, 1.2}}
+		player := Entity {
+			WorldPos{V3i{0, 0, 0}, V3{0, 0, 0}},
+			EntityType.Player,
+			V2{1.0, 1.2},
+			EntityStatus.Idle,
+			0,
+			0,
+		}
 		add_entity(game_state, player)
 		game_state^.player = &game_state^.entities[0]
 
@@ -150,35 +156,41 @@ update_and_render: UpdateAndRenderProc : proc(
 				WorldPos{V3i{i32(i), 0, 0}, V3{5, 5, 0}},
 				EntityType.Wall,
 				V2{wall_size, wall_size},
+				EntityStatus.Null,
+				0,
+				0,
 			}
 			add_entity(game_state, entity)
 		}
 
-		// 加载图片
-		background_img, err := image.load_from_file(
-			"resources/background_pink_sky.png",
-			{},
-			game_memory.temp_alloc, // 使用主程序传入的临时分配器
-		)
-		assert(err == nil)
-		game_state^.background = background_img
+		// 背景图片（目前加载后太卡了，先注释掉）
+		// background_img, err := image.load_from_file(
+		// 	"resources/background_pink_sky.png",
+		// 	{},
+		// 	game_memory.temp_alloc, // 使用主程序传入的临时分配器
+		// )
+		// assert(err == nil)
+		// game_state^.background = background_img
 
-		hero_img, load_err := image.load_from_file(
-			"resources/Units/Black Units/Warrior/Warrior_Run.png",
-			{},
-			game_memory.temp_alloc,
-		)
-
-		assert(load_err == nil)
-		game_state^.img_hero.run = AnimateImage{hero_img, 6, 0, 6, 0}
-
-		hero_img, load_err = image.load_from_file(
-			"resources/Units/Black Units/Warrior/Warrior_Idle.png", // "resources/Buildings/Black Buildings/Castle.png", 
+		unit_img, load_err := image.load_from_file(
+			"resources/Units/Warrior.png",
 			{},
 			game_memory.temp_alloc,
 		)
 		assert(load_err == nil)
-		game_state^.img_hero.idle = AnimateImage{hero_img, 8, 0, 6, 0}
+		unit_json, ok := os.read_entire_file(
+			"resources/Units/Warrior.json",
+			game_memory.temp_alloc,
+		)
+		assert(ok)
+		unit_animate := AseSpriteSheet{}
+		parse_err := json.unmarshal(unit_json, &unit_animate)
+		assert(parse_err == nil)
+		game_state^.unit_animate = animation_from_ase_sprite_sheet(
+			unit_animate,
+			unit_img,
+			V2i{80, 120},
+		)
 
 		// 完成
 		game_memory.is_initialized = true
@@ -201,38 +213,48 @@ update_and_render: UpdateAndRenderProc : proc(
 		move += V3{1, 0, 0}
 	}
 
-	is_moving := move.x != 0 || move.y != 0 || move.z != 0
+	player_speed :: 3.0
 
-	game_state^.player^.pos = world_pos_add(game_state^.player^.pos, move * 0.1)
+	is_moving := move.x != 0 || move.y != 0 || move.z != 0
+	new_status := is_moving ? EntityStatus.Run : EntityStatus.Idle
+	if (game_state^.player^.status != EntityStatus.Null &&
+		   game_state^.player^.status != new_status) {
+		game_state^.player^.anim_frame_idx = 0
+		game_state^.player^.anim_time = 0
+	}
+	game_state^.player^.status = new_status
+
+	game_state^.player^.pos = world_pos_add(
+		game_state^.player^.pos,
+		move * player_speed * time_span,
+	)
 
 	// render
 
 	draw_line_x(image_buffer.height / 2, image_buffer)
 	draw_line_y(image_buffer.width / 2, image_buffer)
 
-	for entity in active_entities(game_state) {
-		using entity
+	entities := active_entities(game_state)
+	for i in 0 ..< len(entities) {
+		entity := &entities[i]
 
 		// 屏幕中心与相对像素偏移
 		screen_center := V2i{image_buffer.width / 2, image_buffer.height / 2}
-		rel_pos_px := meter_to_pixel(relative_pos(pos, game_state^.camera_pos)) // V3
+		rel_pos_px := meter_to_pixel(relative_pos(entity.pos, game_state^.camera_pos)) // V3
 		rel_px := V2i{i32(rel_pos_px.x), -i32(rel_pos_px.y)} // 上为负
 
 		// 是否玩家
-		is_player := type == EntityType.Player
-		animate := is_moving ? &game_state^.img_hero.run : &game_state^.img_hero.idle
+		is_player := entity.type == EntityType.Player
 
 		// 玩家帧尺寸 or 一般实体尺寸（米→像素）
-		frame_w := i32(animate.image^.width) / animate.frame_count
-		frame_h := i32(animate.image^.height)
-		size_px := V2i{i32(meter_to_pixel(size.x)), i32(meter_to_pixel(size.y))}
+		size_px := V2i{i32(meter_to_pixel(entity.size.x)), i32(meter_to_pixel(entity.size.y))}
 
 		// 左上角 = 屏幕中心 + 相对偏移 - 重心到左上角调整(半宽, 全高)
 		top_left := screen_center + rel_px - V2i{size_px.x / 2, size_px.y}
 
-		#partial switch type {
+		#partial switch entity.type {
 		case .Player:
-			draw_animation(top_left, size_px, animate, image_buffer)
+			draw_animation(top_left, game_state.unit_animate, entity, image_buffer, time_span)
 			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, RED, image_buffer, true)
 		case .Wall:
 			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, GREEN, image_buffer)
