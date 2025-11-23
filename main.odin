@@ -143,6 +143,10 @@ main :: proc() {
 			keyboard_controller^.move_down.ended_down = rl.IsKeyDown(rl.KeyboardKey.S)
 			keyboard_controller^.move_left.ended_down = rl.IsKeyDown(rl.KeyboardKey.A)
 			keyboard_controller^.move_right.ended_down = rl.IsKeyDown(rl.KeyboardKey.D)
+			keyboard_controller^.action_up.ended_down = rl.IsKeyDown(rl.KeyboardKey.I)
+			keyboard_controller^.action_down.ended_down = rl.IsKeyDown(rl.KeyboardKey.K)
+			keyboard_controller^.action_left.ended_down = rl.IsKeyDown(rl.KeyboardKey.J)
+			keyboard_controller^.action_right.ended_down = rl.IsKeyDown(rl.KeyboardKey.L)
 
 			// 录制模式：保存输入到文件
 			if record_state.is_recording {

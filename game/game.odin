@@ -73,6 +73,26 @@ world_pos_add :: proc(p: WorldPos, d: V3) -> WorldPos {
 	return canonicalize(p)
 }
 
+choose_status :: proc(
+	is_moving: bool,
+	is_attacking_1: bool,
+	is_attacking_2: bool,
+	// 以后可以继续加：is_guarding, is_dead, is_hit 等
+) -> EntityStatus {
+	// 按优先级从高到低排：
+	if is_attacking_1 {
+		return .Attack_1
+	}
+	if is_attacking_2 {
+		return .Attack_2
+	}
+	if is_moving {
+		return .Run
+	}
+
+	return .Idle
+}
+
 
 GameState :: struct {
 	camera_pos:   WorldPos,
@@ -216,7 +236,9 @@ update_and_render: UpdateAndRenderProc : proc(
 	player_speed :: 3.0
 
 	is_moving := move.x != 0 || move.y != 0 || move.z != 0
-	new_status := is_moving ? EntityStatus.Run : EntityStatus.Idle
+	is_attacking_1 := input.controllers[0].action_left.ended_down
+	is_attacking_2 := input.controllers[0].action_down.ended_down
+	new_status := choose_status(is_moving, is_attacking_1, is_attacking_2)
 	if (game_state^.player^.status != EntityStatus.Null &&
 		   game_state^.player^.status != new_status) {
 		game_state^.player^.anim_frame_idx = 0
