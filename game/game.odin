@@ -209,7 +209,8 @@ update_and_render: UpdateAndRenderProc : proc(
 		game_state^.unit_animate = animation_from_ase_sprite_sheet(
 			unit_animate,
 			unit_img,
-			V2i{80, 120},
+			V2i{20, 40},
+			"Warrior",
 		)
 
 		// 完成

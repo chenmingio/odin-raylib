@@ -70,6 +70,7 @@ animation_from_ase_sprite_sheet :: proc(
 	sheet: AseSpriteSheet,
 	image: ^image.Image,
 	anchor_offset: V2i,
+	prefix: string,
 ) -> Animation {
 	result: Animation
 	result.image = image
@@ -80,7 +81,7 @@ animation_from_ase_sprite_sheet :: proc(
 		clip := &result.clips[status]
 
 		for i in 0 ..= (tag.to - tag.from) {
-			key := fmt.tprintf("Warrior #%s %d.aseprite", tag.name, i)
+			key := fmt.tprintf("%s #%s %d.aseprite", prefix, tag.name, i)
 			frame, ok := sheet.frames[key]
 			assert(ok, "frame not found")
 

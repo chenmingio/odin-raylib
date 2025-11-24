@@ -185,6 +185,7 @@ draw_animation :: proc(
 	frame := clips[entity.anim_frame_idx]
 	size := V2i{i32(frame.frame.w), i32(frame.frame.h)}
 	offset := V2i{i32(frame.frame.x), i32(frame.frame.y)}
+	pos := pos + animation.anchorOffset
 
 	draw_image_corp(pos, image, buffer, size, offset)
 }
