@@ -20,6 +20,11 @@ EntityStatus :: enum {
 	Guard,
 }
 
+Direction :: enum {
+	Forward,
+	Backward,
+}
+
 status_names := [EntityStatus]string {
 	.Null     = "Null",
 	.Idle     = "Idle",
@@ -50,6 +55,7 @@ Entity :: struct {
 	status:         EntityStatus,
 	anim_frame_idx: i32,
 	anim_time:      i32, // ms
+	direction:      Direction,
 }
 
 

@@ -62,11 +62,13 @@ draw_line_y :: proc(x: i32, buffer: OffScreenBuffer) {
 	}
 }
 
-blend :: proc(target, source: []u32) {
+blend :: proc(target, source: []u32, reverse: bool = false) {
 	for i in 0 ..< len(target) {
+		source_index := reverse ? len(target) - i - 1 : i
+
 		// 先把内部像素格式转换成标准 RGBA（与上面的常量定义一致）
 		c_dst := intrinsics.byte_swap(target[i])
-		c_src := intrinsics.byte_swap(source[i])
+		c_src := intrinsics.byte_swap(source[source_index])
 
 		rd := c_dst >> 24 & 0xFF
 		gd := c_dst >> 16 & 0xFF
@@ -92,7 +94,12 @@ blend :: proc(target, source: []u32) {
 }
 
 // size: 图片crop的尺寸
-draw_image_simple :: proc(pos: V2i, img: ^image.Image, buffer: OffScreenBuffer) {
+draw_image_simple :: proc(
+	pos: V2i,
+	img: ^image.Image,
+	buffer: OffScreenBuffer,
+	reverse: bool = false,
+) {
 
 	// buffer上从哪里开始画
 	minX := clamp(pos.x, 0, buffer.width)
@@ -118,17 +125,18 @@ draw_image_simple :: proc(pos: V2i, img: ^image.Image, buffer: OffScreenBuffer) 
 		target_start := target_row * buffer.width + minX
 		target := buffer.data[target_start:target_start + maxX - minX]
 
-		blend(target, source_u32)
+		blend(target, source_u32, reverse)
 	}
 }
 
 // size: 图片crop的尺寸
 draw_image_corp :: proc(
 	pos: V2i,
-	img: ^image.Image,
+	img: ^image.Image, // 整个图片文件
 	buffer: OffScreenBuffer,
-	size: V2i = V2i{},
-	offset: V2i = V2i{},
+	size: V2i = V2i{}, // 需要画出的部分
+	offset: V2i = V2i{}, // 需要画出的部分
+	reverse: bool = false,
 ) {
 
 	assert(offset.x >= 0 && offset.y >= 0)
@@ -157,7 +165,7 @@ draw_image_corp :: proc(
 		target_start := target_row * buffer.width + minX
 		target := buffer.data[target_start:target_start + maxX - minX]
 
-		blend(target, source_u32)
+		blend(target, source_u32, reverse)
 	}
 }
 
@@ -187,7 +195,8 @@ draw_animation :: proc(
 	offset := V2i{i32(frame.frame.x), i32(frame.frame.y)}
 	pos := pos + animation.anchorOffset
 
-	draw_image_corp(pos, image, buffer, size, offset)
+	reverse := entity.direction == Direction.Backward
+	draw_image_corp(pos, image, buffer, size, offset, reverse)
 }
 
 intersect_images :: proc(a: Rectangle, b: Rectangle) -> (Rectangle, bool) {

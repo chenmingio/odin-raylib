@@ -167,6 +167,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			EntityStatus.Idle,
 			0,
 			0,
+			Direction.Forward,
 		}
 		add_entity(game_state, player)
 		game_state^.player = &game_state^.entities[0]
@@ -179,6 +180,7 @@ update_and_render: UpdateAndRenderProc : proc(
 				EntityStatus.Null,
 				0,
 				0,
+				Direction.Forward,
 			}
 			add_entity(game_state, entity)
 		}
@@ -237,6 +239,10 @@ update_and_render: UpdateAndRenderProc : proc(
 	player_speed :: 3.0
 
 	is_moving := move.x != 0 || move.y != 0 || move.z != 0
+	if is_moving {
+		game_state^.player^.direction = (move.x > 0 ? Direction.Forward : Direction.Backward)
+	}
+
 	is_attacking_1 := input.controllers[0].action_left.ended_down
 	is_attacking_2 := input.controllers[0].action_down.ended_down
 	new_status := choose_status(is_moving, is_attacking_1, is_attacking_2)
