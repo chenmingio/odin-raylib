@@ -65,31 +65,39 @@ draw_line_y :: proc(x: i32, buffer: OffScreenBuffer) {
 blend :: proc(target, source: []u32, reverse: bool = false) {
 	assert(len(target) == len(source))
 	for i in 0 ..< len(target) {
-		source_index := reverse ? len(target) - i - 1 : i
+		si := reverse ? len(target) - i - 1 : i
 
-		// 先把内部像素格式转换成标准 RGBA（与上面的常量定义一致）
+		// 快速路径：全透明/全不透明
+		// 注意：source/target 的内部像素格式一致，可直接赋值
+		c_src_swapped := intrinsics.byte_swap(source[si])
+		as := c_src_swapped & 0xFF
+		if as == 0 {
+			// 全透明：不改变目标像素
+			continue
+		}
+		if as == 255 {
+			// 全不透明：直接拷贝（避免所有计算和两次 byte_swap）
+			target[i] = source[si]
+			continue
+		}
+
+		// 一般路径：做标准 alpha 混合
 		c_dst := intrinsics.byte_swap(target[i])
-		c_src := intrinsics.byte_swap(source[source_index])
-
 		rd := c_dst >> 24 & 0xFF
 		gd := c_dst >> 16 & 0xFF
 		bd := c_dst >> 8 & 0xFF
 		ad := c_dst & 0xFF
 
-		rs := c_src >> 24 & 0xFF
-		gs := c_src >> 16 & 0xFF
-		bs := c_src >> 8 & 0xFF
-		as := c_src & 0xFF
+		rs := c_src_swapped >> 24 & 0xFF
+		gs := c_src_swapped >> 16 & 0xFF
+		bs := c_src_swapped >> 8 & 0xFF
 
-		// 非预乘 alpha: Cout = Cs * As + Cd * (1 - As)
 		r_out := (rd * (255 - as) + rs * as) / 255
 		g_out := (gd * (255 - as) + gs * as) / 255
 		b_out := (bd * (255 - as) + bs * as) / 255
-		// Aout = As + Ad * (1 - As)
 		a_out := as + (ad * (255 - as)) / 255
 
 		c_out := (r_out << 24) | (g_out << 16) | (b_out << 8) | a_out
-		// 再转换回内部像素格式
 		target[i] = intrinsics.byte_swap(c_out)
 	}
 }
@@ -132,15 +140,14 @@ draw_image_simple :: proc(
 
 draw_tile_map :: proc(tile_pos: V2i, tile_idx: u8, img: ^image.Image, buffer: OffScreenBuffer) {
 	tile_size := i32(img^.height / 6)
-	x := (tile_pos.x * tile_size)
-	y := (tile_pos.y * tile_size)
-	draw_image_corp(
-		V2i{x, y},
-		img,
-		buffer,
-		V2i{tile_size, tile_size},
-		V2i{i32(tile_idx) % 4 * tile_size, 0},
-	)
+	tiles_per_row := max(1, i32(img^.width) / tile_size)
+
+	atlas_x := (i32(tile_idx) % tiles_per_row) * tile_size
+	atlas_y := (i32(tile_idx) / tiles_per_row) * tile_size
+
+	x := tile_pos.x * tile_size
+	y := tile_pos.y * tile_size
+	draw_image_corp(V2i{x, y}, img, buffer, V2i{tile_size, tile_size}, V2i{atlas_x, atlas_y})
 }
 
 // size: 图片crop的尺寸
@@ -165,9 +172,12 @@ draw_image_corp :: proc(
 	offset_x := (pos.x >= 0 ? 0 : -pos.x) + offset.x
 	offset_y := (pos.y >= 0 ? 0 : -pos.y) + offset.y
 
+	// 将像素缓冲预先转换为 u32 视图，避免在每一行循环中重复 transmute
+	pixels_u32 := (transmute([dynamic]u32)img^.pixels.buf)
+
 	for target_row in minY ..< maxY {
 		// 计算正确的 source 坐标
-		source_row := target_row - pos.y + offset.y // 相对于图像的行号
+		source_row := target_row - pos.y + offset_y // 相对于图像的行号
 
 		// image.pixels is []byte, so we need to multiply by 4 to get the correct offset
 		source_start := (source_row) * i32(img^.width) + offset_x
@@ -175,7 +185,7 @@ draw_image_corp :: proc(
 
 		// bytes
 		// source := (transmute([dynamic]u32)img^.pixels.buf)[source_start:source_end] //dynamic转换问题不太理解
-		source := (transmute([dynamic]u32)img^.pixels.buf)[source_start:source_end]
+		source := pixels_u32[source_start:source_end]
 
 		target_start := target_row * buffer.width + minX
 		target := buffer.data[target_start:target_start + maxX - minX]
