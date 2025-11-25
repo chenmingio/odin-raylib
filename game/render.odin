@@ -208,9 +208,9 @@ draw_entity_animation :: proc(
 	}
 
 	frame := clips[entity.anim_frame_idx]
-	size := V2i{i32(frame.frame.w), i32(frame.frame.h)}
-	offset := V2i{i32(frame.frame.x), i32(frame.frame.y)}
-	pos := pos + animation.anchorOffset
+	size := V2i{frame.frame.w, frame.frame.h}
+	offset := V2i{frame.frame.x, frame.frame.y}
+	pos := pos + animation.anchorOffset - V2i{frame.spriteSourceSize.w, frame.spriteSourceSize.h}
 
 	reverse := entity.direction == Direction.Backward
 	draw_image_corp(pos, image, buffer, size, offset, reverse)

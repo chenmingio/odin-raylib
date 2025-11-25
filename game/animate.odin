@@ -6,7 +6,7 @@ import "core:strconv"
 import "core:strings"
 
 AseRect :: struct {
-	x, y, w, h: int,
+	x, y, w, h: i32,
 }
 
 AseFrame :: struct {
