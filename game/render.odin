@@ -109,33 +109,7 @@ draw_image_simple :: proc(
 	buffer: OffScreenBuffer,
 	reverse: bool = false,
 ) {
-
-	// buffer上从哪里开始画
-	minX := clamp(pos.x, 0, buffer.width)
-	maxX := clamp(pos.x + i32(img^.width), minX, buffer.width)
-	minY := clamp(pos.y, 0, buffer.height)
-	maxY := clamp(pos.y + i32(img^.height), minY, buffer.height)
-
-	// 图像上开始读取的位置
-	offset_x := (pos.x >= 0 ? 0 : -pos.x)
-	offset_y := (pos.y >= 0 ? 0 : -pos.y)
-
-	for target_row in minY ..< maxY {
-		// 计算正确的 source 坐标
-		source_row := target_row - pos.y // 相对于图像的行号
-
-		// image.pixels is []byte, so we need to multiply by 4 to get the correct offset
-		source_start := (source_row) * i32(img^.width) + offset_x
-		source_end := source_start + (maxX - minX)
-
-		source := img^.pixels.buf[source_start * 4:source_end * 4]
-		source_u32 := transmute([]u32)source
-
-		target_start := target_row * buffer.width + minX
-		target := buffer.data[target_start:target_start + maxX - minX]
-
-		blend(target, source_u32, reverse)
-	}
+	draw_image_corp(pos, img, buffer, V2i{i32(img^.width), i32(img^.height)}, V2i{}, reverse)
 }
 
 draw_tile_map :: proc(grid_pos: V2i, tile_idx: V2i, img: ^image.Image, buffer: OffScreenBuffer) {

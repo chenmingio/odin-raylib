@@ -1,6 +1,7 @@
 package game
 
 import "core:encoding/json" // 必须保留！用于注册 PNG 加载器
+import "core:fmt"
 import "core:image"
 import "core:image/png"
 import "core:math/linalg"
@@ -104,6 +105,7 @@ GameState :: struct {
 	unit_animate: Animation,
 	tilemap1:     ^image.Image,
 	game_map:     [tileMapY][tileMapX]V2i,
+	rock_images:  [4]^image.Image,
 }
 
 CorppedImage :: struct {
@@ -118,7 +120,7 @@ World :: struct {
 	chunkSideInMeters: f32,
 }
 
-wall_size :: f32(3.0)
+wall_size :: f32(1.0)
 
 ScreenPos :: V2
 
@@ -214,6 +216,17 @@ update_and_render: UpdateAndRenderProc : proc(
 			}
 			add_entity(game_state, entity)
 		}
+		// 石头
+		for i in 0 ..< 4 {
+			rock, err_load_rock := image.load_from_file(
+				fmt.tprintf("resources/Decorations/Rocks/Rock%d.png", i + 1),
+				{},
+				game_memory.temp_alloc,
+			)
+			assert(err_load_rock == nil)
+			game_state^.rock_images[i] = rock
+		}
+
 
 		// 载入地面
 		tilemap1, err_load_tilemap1 := image.load_from_file(
@@ -270,7 +283,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	player_speed :: 3.0
 
 	is_moving := move.x != 0 || move.y != 0 || move.z != 0
-	if is_moving {
+	if (move.x != 0) {
 		game_state^.player^.direction = (move.x > 0 ? Direction.Forward : Direction.Backward)
 	}
 
@@ -317,7 +330,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		// 玩家帧尺寸 or 一般实体尺寸（米→像素）
 		size_px := V2i{i32(meter_to_pixel(entity.size.x)), i32(meter_to_pixel(entity.size.y))}
 
-		// 左上角 = 屏幕中心 + 相对偏移 - 重心到左上角调整(半宽, 全高)
+		// 对象左上角 = 屏幕中心 + 相对偏移 - 重心到左上角调整(半宽, 全高)
 		top_left := screen_center + rel_px - V2i{size_px.x / 2, size_px.y}
 
 		switch entity.type {
@@ -325,7 +338,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			draw_animation(top_left, game_state.unit_animate, entity, image_buffer, time_span)
 			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, RED, image_buffer, true)
 		case .Wall:
-		// draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, GREEN, image_buffer)
+			draw_image_simple(top_left, game_state^.rock_images[0], image_buffer)
 		case .Tree:
 		case .Enemy:
 		case .Null:
