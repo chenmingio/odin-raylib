@@ -103,7 +103,7 @@ GameState :: struct {
 	background:   ^image.Image,
 	unit_animate: Animation,
 	tilemap1:     ^image.Image,
-	game_map:     [64][64]u8,
+	game_map:     [tileMapY][tileMapX]V2i,
 }
 
 CorppedImage :: struct {
@@ -121,6 +121,9 @@ World :: struct {
 wall_size :: f32(3.0)
 
 ScreenPos :: V2
+
+tileMapX :: 30
+tileMapY :: 20
 
 Rectangle :: struct {
 	min: V2i,
@@ -161,9 +164,27 @@ update_and_render: UpdateAndRenderProc : proc(
 		game_state^.camera_pos = WorldPos{V3i{}, V3{}}
 		// 地图
 
-		for i in 0 ..< 64 {
-			for j in 0 ..< 64 {
-				game_state^.game_map[i][j] = u8(rand.int_max(256))
+		for y in 0 ..< tileMapY {
+			for x in 0 ..< tileMapX {
+				if (x == 0 && y == 0) {
+					game_state^.game_map[y][x] = V2i{0, 0}
+				} else if (x == tileMapX - 1 && y == 0) {
+					game_state^.game_map[y][x] = V2i{2, 0}
+				} else if (x == 0 && y == tileMapY - 1) {
+					game_state^.game_map[y][x] = V2i{0, 2}
+				} else if (x == tileMapX - 1 && y == tileMapY - 1) {
+					game_state^.game_map[y][x] = V2i{2, 2}
+				} else if (x == 0) {
+					game_state^.game_map[y][x] = V2i{0, 1}
+				} else if (x == tileMapX - 1) {
+					game_state^.game_map[y][x] = V2i{2, 1}
+				} else if (y == 0) {
+					game_state^.game_map[y][x] = V2i{1, 0}
+				} else if (y == tileMapY - 1) {
+					game_state^.game_map[y][x] = V2i{1, 2}
+				} else {
+					game_state^.game_map[y][x] = V2i{1, 1}
+				}
 			}
 		}
 
@@ -274,10 +295,10 @@ update_and_render: UpdateAndRenderProc : proc(
 	draw_line_y(image_buffer.width / 2, image_buffer)
 
 	// draw map
-	for i in 0 ..< 64 {
-		for j in 0 ..< 64 {
-			tile := game_state^.game_map[i][j]
-			draw_tile_map(V2i{i32(i), i32(j)}, tile, game_state^.tilemap1, image_buffer)
+	for y in 0 ..< tileMapY {
+		for x in 0 ..< tileMapX {
+			tile := game_state^.game_map[y][x]
+			draw_tile_map(V2i{i32(x), i32(y)}, tile, game_state^.tilemap1, image_buffer)
 		}
 	}
 
@@ -304,7 +325,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			draw_animation(top_left, game_state.unit_animate, entity, image_buffer, time_span)
 			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, RED, image_buffer, true)
 		case .Wall:
-			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, GREEN, image_buffer)
+		// draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, GREEN, image_buffer)
 		case .Tree:
 		case .Enemy:
 		case .Null:

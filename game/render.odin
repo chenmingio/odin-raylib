@@ -138,15 +138,15 @@ draw_image_simple :: proc(
 	}
 }
 
-draw_tile_map :: proc(tile_pos: V2i, tile_idx: u8, img: ^image.Image, buffer: OffScreenBuffer) {
-	tile_size := i32(img^.height / 6)
-	tiles_per_row := max(1, i32(img^.width) / tile_size)
+draw_tile_map :: proc(grid_pos: V2i, tile_idx: V2i, img: ^image.Image, buffer: OffScreenBuffer) {
+	tiles_per_col :: 6
+	tile_size := i32(img^.height / tiles_per_col)
 
-	atlas_x := (i32(tile_idx) % tiles_per_row) * tile_size
-	atlas_y := (i32(tile_idx) / tiles_per_row) * tile_size
+	atlas_x := tile_idx.x * tile_size
+	atlas_y := tile_idx.y * tile_size
 
-	x := tile_pos.x * tile_size
-	y := tile_pos.y * tile_size
+	x := grid_pos.x * tile_size + tile_size / 2
+	y := grid_pos.y * tile_size + tile_size / 2
 	draw_image_corp(V2i{x, y}, img, buffer, V2i{tile_size, tile_size}, V2i{atlas_x, atlas_y})
 }
 
