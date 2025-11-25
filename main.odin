@@ -31,7 +31,7 @@ main :: proc() {
 
 	screen_width := i32(5120 / 2)
 	screen_height := i32(2880 / 2)
-	target_fps := i32(60)
+	target_fps := i32(32)
 
 	rl.SetTargetFPS(target_fps)
 	rl.SetTraceLogLevel(rl.TraceLogLevel.TRACE)

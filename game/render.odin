@@ -63,6 +63,7 @@ draw_line_y :: proc(x: i32, buffer: OffScreenBuffer) {
 }
 
 blend :: proc(target, source: []u32, reverse: bool = false) {
+	assert(len(target) == len(source))
 	for i in 0 ..< len(target) {
 		source_index := reverse ? len(target) - i - 1 : i
 
@@ -129,19 +130,32 @@ draw_image_simple :: proc(
 	}
 }
 
+draw_tile_map :: proc(tile_pos: V2i, tile_idx: u8, img: ^image.Image, buffer: OffScreenBuffer) {
+	tile_size := i32(img^.height / 6)
+	x := (tile_pos.x * tile_size)
+	y := (tile_pos.y * tile_size)
+	draw_image_corp(
+		V2i{x, y},
+		img,
+		buffer,
+		V2i{tile_size, tile_size},
+		V2i{i32(tile_idx) % 4 * tile_size, 0},
+	)
+}
+
 // size: 图片crop的尺寸
 draw_image_corp :: proc(
 	pos: V2i,
 	img: ^image.Image, // 整个图片文件
 	buffer: OffScreenBuffer,
-	size: V2i = V2i{}, // 需要画出的部分
-	offset: V2i = V2i{}, // 需要画出的部分
+	size: V2i = V2i{}, // 需要画出的部分的尺寸
+	offset: V2i = V2i{}, // 需要画出的部分的偏移
 	reverse: bool = false,
 ) {
 
 	assert(offset.x >= 0 && offset.y >= 0)
 
-	// buffer上从哪里开始画
+	// buffer上从哪里开始画(pixels)
 	minX := clamp(pos.x, 0, buffer.width)
 	maxX := clamp(pos.x + min(size.x, i32(img^.width) - offset.x), minX, buffer.width)
 	minY := clamp(pos.y, 0, buffer.height)
@@ -156,16 +170,17 @@ draw_image_corp :: proc(
 		source_row := target_row - pos.y + offset.y // 相对于图像的行号
 
 		// image.pixels is []byte, so we need to multiply by 4 to get the correct offset
-		source_start := (source_row) * i32(img.width) + offset_x
+		source_start := (source_row) * i32(img^.width) + offset_x
 		source_end := source_start + (maxX - minX)
 
-		source := img.pixels.buf[source_start * 4:source_end * 4]
-		source_u32 := transmute([]u32)source
+		// bytes
+		// source := (transmute([dynamic]u32)img^.pixels.buf)[source_start:source_end] //dynamic转换问题不太理解
+		source := (transmute([dynamic]u32)img^.pixels.buf)[source_start:source_end]
 
 		target_start := target_row * buffer.width + minX
 		target := buffer.data[target_start:target_start + maxX - minX]
 
-		blend(target, source_u32, reverse)
+		blend(target, source, reverse)
 	}
 }
 

@@ -4,6 +4,7 @@ import "core:encoding/json" // 必须保留！用于注册 PNG 加载器
 import "core:image"
 import "core:image/png"
 import "core:math/linalg"
+import "core:math/rand"
 import "core:mem"
 import "core:os"
 
@@ -102,6 +103,7 @@ GameState :: struct {
 	background:   ^image.Image,
 	unit_animate: Animation,
 	tilemap1:     ^image.Image,
+	game_map:     [64][64]u8,
 }
 
 CorppedImage :: struct {
@@ -149,7 +151,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	image_buffer: OffScreenBuffer,
 	time_span: f32,
 ) {
-
+	rand.reset(12345)
 	// 之前以为不能premanent_storage直接拿来用，其实是可以的。
 	// 只不过他是个slice，有元数据，要用raw_data来指向slice的data区域
 	game_state := cast(^GameState)raw_data(game_memory.permanent_storage)
@@ -157,6 +159,13 @@ update_and_render: UpdateAndRenderProc : proc(
 		// 初始化工作
 		// 设置初始相机位置
 		game_state^.camera_pos = WorldPos{V3i{}, V3{}}
+		// 地图
+
+		for i in 0 ..< 64 {
+			for j in 0 ..< 64 {
+				game_state^.game_map[i][j] = u8(rand.int_max(256))
+			}
+		}
 
 		// 加载entities
 		// 以米为单位
@@ -185,21 +194,22 @@ update_and_render: UpdateAndRenderProc : proc(
 			add_entity(game_state, entity)
 		}
 
-		// 背景图片（目前加载后太卡了，先注释掉）
-		// background_img, err := image.load_from_file(
-		// 	"resources/background_pink_sky.png",
-		// 	{},
-		// 	game_memory.temp_alloc, // 使用主程序传入的临时分配器
-		// )
-		// assert(err == nil)
-		// game_state^.background = background_img
+		// 载入地面
+		tilemap1, err_load_tilemap1 := image.load_from_file(
+			"resources/Terrain/Tilemap_color1.png",
+			{},
+			game_memory.temp_alloc, // 使用主程序传入的临时分配器
+		)
+		assert(err_load_tilemap1 == nil)
+		game_state^.tilemap1 = tilemap1
 
-		unit_img, load_err := image.load_from_file(
+		// 载入单位动画
+		unit_img, err_load_unit_img := image.load_from_file(
 			"resources/Units/Warrior.png",
 			{},
 			game_memory.temp_alloc,
 		)
-		assert(load_err == nil)
+		assert(err_load_unit_img == nil)
 		unit_json, ok := os.read_entire_file(
 			"resources/Units/Warrior.json",
 			game_memory.temp_alloc,
@@ -211,15 +221,15 @@ update_and_render: UpdateAndRenderProc : proc(
 		game_state^.unit_animate = animation_from_ase_sprite_sheet(
 			unit_animate,
 			unit_img,
-			V2i{20, 40},
+			V2i{0, 0},
 			"Warrior",
 		)
+
 
 		// 完成
 		game_memory.is_initialized = true
 	}
 
-	game_map :: [5]i32{1, 0, 1, 0, 1}
 	draw_rectangle(0, 0, image_buffer.width, image_buffer.height, GREEN, image_buffer)
 
 	move := V3{0, 0, 0}
@@ -263,6 +273,14 @@ update_and_render: UpdateAndRenderProc : proc(
 	draw_line_x(image_buffer.height / 2, image_buffer)
 	draw_line_y(image_buffer.width / 2, image_buffer)
 
+	// draw map
+	for i in 0 ..< 64 {
+		for j in 0 ..< 64 {
+			tile := game_state^.game_map[i][j]
+			draw_tile_map(V2i{i32(i), i32(j)}, tile, game_state^.tilemap1, image_buffer)
+		}
+	}
+
 	entities := active_entities(game_state)
 	for i in 0 ..< len(entities) {
 		entity := &entities[i]
@@ -281,7 +299,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		// 左上角 = 屏幕中心 + 相对偏移 - 重心到左上角调整(半宽, 全高)
 		top_left := screen_center + rel_px - V2i{size_px.x / 2, size_px.y}
 
-		#partial switch entity.type {
+		switch entity.type {
 		case .Player:
 			draw_animation(top_left, game_state.unit_animate, entity, image_buffer, time_span)
 			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, RED, image_buffer, true)
@@ -289,8 +307,12 @@ update_and_render: UpdateAndRenderProc : proc(
 			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, GREEN, image_buffer)
 		case .Tree:
 		case .Enemy:
+		case .Null:
+			break
 		}
 	}
+
+
 }
 
 @(export)
