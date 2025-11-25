@@ -168,8 +168,26 @@ draw_image_corp :: proc(
 	}
 }
 
+draw_entity_image :: proc(
+	pos: V2i,
+	image: ^image.Image,
+	entity: ^Entity,
+	buffer: OffScreenBuffer,
+) {
+	draw_image_simple(pos, image, buffer)
+	draw_rectangle(
+		pos.x,
+		pos.y,
+		i32(meter_to_pixel(entity^.size.x)),
+		i32(meter_to_pixel(entity^.size.y)),
+		RED,
+		buffer,
+		true,
+	)
+}
+
 // 假设动画图片水平排列，一共有frames帧
-draw_animation :: proc(
+draw_entity_animation :: proc(
 	pos: V2i,
 	animation: Animation,
 	entity: ^Entity,
@@ -196,6 +214,17 @@ draw_animation :: proc(
 
 	reverse := entity.direction == Direction.Backward
 	draw_image_corp(pos, image, buffer, size, offset, reverse)
+
+	// 绘制entity体积框
+	draw_rectangle(
+		pos.x,
+		pos.y,
+		i32(meter_to_pixel(entity.size.x)),
+		i32(meter_to_pixel(entity.size.y)),
+		RED,
+		buffer,
+		true,
+	)
 }
 
 intersect_images :: proc(a: Rectangle, b: Rectangle) -> (Rectangle, bool) {

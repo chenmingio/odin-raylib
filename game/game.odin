@@ -120,7 +120,7 @@ World :: struct {
 	chunkSideInMeters: f32,
 }
 
-wall_size :: f32(1.0)
+wall_size :: f32(0.2)
 
 ScreenPos :: V2
 
@@ -195,7 +195,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		player := Entity {
 			WorldPos{V3i{0, 0, 0}, V3{0, 0, 0}},
 			EntityType.Player,
-			V2{1.0, 1.2},
+			V2{0.8, 0.8},
 			EntityStatus.Idle,
 			0,
 			0,
@@ -302,11 +302,6 @@ update_and_render: UpdateAndRenderProc : proc(
 		move * player_speed * time_span,
 	)
 
-	// render
-
-	draw_line_x(image_buffer.height / 2, image_buffer)
-	draw_line_y(image_buffer.width / 2, image_buffer)
-
 	// draw map
 	for y in 0 ..< tileMapY {
 		for x in 0 ..< tileMapX {
@@ -335,16 +330,25 @@ update_and_render: UpdateAndRenderProc : proc(
 
 		switch entity.type {
 		case .Player:
-			draw_animation(top_left, game_state.unit_animate, entity, image_buffer, time_span)
-			draw_rectangle(top_left.x, top_left.y, size_px.x, size_px.y, RED, image_buffer, true)
+			draw_entity_animation(
+				top_left,
+				game_state.unit_animate,
+				entity,
+				image_buffer,
+				time_span,
+			)
 		case .Wall:
-			draw_image_simple(top_left, game_state^.rock_images[0], image_buffer)
+			draw_entity_image(top_left, game_state^.rock_images[0], entity, image_buffer)
 		case .Tree:
 		case .Enemy:
 		case .Null:
 			break
 		}
 	}
+
+	// render
+	draw_line_x(image_buffer.height / 2, image_buffer)
+	draw_line_y(image_buffer.width / 2, image_buffer)
 
 
 }
