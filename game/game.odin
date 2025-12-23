@@ -37,44 +37,6 @@ meter_to_pixel :: proc {
 	meter_to_pixel_v3,
 }
 
-
-// in meter
-WorldPos :: struct {
-	xyz: V3i,
-	rel: V3,
-}
-
-ChunkPos :: V3i
-
-canonicalize :: proc(p: WorldPos) -> WorldPos {
-	pos := p
-
-	// 1) 取相对位移的整数部分（向零截断）
-	d := V3i{i32(pos.rel.x), i32(pos.rel.y), i32(pos.rel.z)}
-
-	// 2) 整数部分进位到块坐标
-	pos.xyz += d
-
-	// 3) 从相对位移里扣掉整数部分
-	pos.rel.x -= f32(d[0])
-	pos.rel.y -= f32(d[1])
-	pos.rel.z -= f32(d[2])
-
-	return pos
-}
-
-relative_pos :: proc(p1, p2: WorldPos) -> V3 {
-	di := p1.xyz - p2.xyz // [3]i32
-	df := V3{f32(di.x), f32(di.y), f32(di.z)} // Vector3f32
-	return df + p1.rel - p2.rel
-}
-
-world_pos_add :: proc(p: WorldPos, d: V3) -> WorldPos {
-	p := p
-	p.rel += d
-	return canonicalize(p)
-}
-
 choose_status :: proc(
 	is_moving: bool,
 	is_attacking_1: bool,
@@ -99,7 +61,7 @@ choose_status :: proc(
 GameState :: struct {
 	camera_pos:   WorldPos,
 	player:       ^Entity,
-	entities:     [1000]Entity,
+	entities:     [10000]Entity,
 	entity_count: u32,
 	background:   ^image.Image,
 	unit_animate: Animation,
@@ -115,17 +77,12 @@ CorppedImage :: struct {
 }
 
 
-World :: struct {
-	tileSideInMeters:  f32,
-	chunkSideInMeters: f32,
-}
-
 wall_size :: f32(0.2)
 
 ScreenPos :: V2
 
-tileMapX :: 30
-tileMapY :: 20
+tileMapX :: 16
+tileMapY :: 10
 
 Rectangle :: struct {
 	min: V2i,
@@ -302,6 +259,9 @@ update_and_render: UpdateAndRenderProc : proc(
 		move * player_speed * time_span,
 	)
 
+	// game_state^.camera_pos = game_state^.player^.pos
+
+	// 简单绘制tilemap
 	// draw map
 	for y in 0 ..< tileMapY {
 		for x in 0 ..< tileMapX {
