@@ -22,6 +22,7 @@ MAX_SAMPLES_SECONDS :: 3 // 最大储存3秒的内容
 // 全局音频状态
 audio_time: f32 = 0.0 // 累计时间，用于生成连续声波
 ring_output: RayLibSoundOutput
+underrun_count: int = 0 // underrun 计数器
 
 RayLibSoundOutput :: struct {
 	samples:     []Sample, // 直接存储音频样本
@@ -33,11 +34,31 @@ RayLibSoundOutput :: struct {
 	duration:    int,
 }
 
-// 环形缓冲区读取
+// 计算 buffer 中可用的 sample 数量
+available_samples :: proc() -> int {
+	diff := ring_output.write_index - ring_output.read_index
+	if diff < 0 {
+		diff += len(ring_output.samples)
+	}
+	return diff
+}
+
+// 环形缓冲区读取（带 underrun 检测）
 ring_buffer_consume :: proc(buffer: []Sample, read_index: ^int, output: []Sample) {
 	samples_to_read := len(output)
 	buffer_size := len(buffer)
 	current_read := read_index^
+
+	// underrun 检测：可用数据不足
+	available := available_samples()
+	if available < samples_to_read {
+		underrun_count += 1
+		// 填充静音，避免噪音
+		for i in 0 ..< len(output) {
+			output[i] = 0
+		}
+		return
+	}
 
 	// 计算 region1 和 region2 的大小
 	region1_size, region2_size: int
@@ -146,15 +167,33 @@ init_audio :: proc() -> rl.AudioStream {
 		duration    = MAX_SAMPLES_SECONDS,
 	}
 
+	// 预填充 buffer（约 100ms 的数据），避免启动时 underrun
+	prefill_frames := SAMPLE_RATE / 10 // 100ms
+	prefill_samples := prefill_frames * CHANNELS
+	ring_buffer_produce(ring_output.samples, &ring_output.write_index, prefill_samples, 440.0)
+
 	return setup_audio()
 }
 
-// 每帧更新音频
-update_audio :: proc(is_paused: bool) {
-	if false {
-		// if !is_paused {
-		// 每帧生成一帧的音频数据，避免过度生产
-		sample_count := MAX_SAMPLES_PER_UPDATE * CHANNELS
-		ring_buffer_produce(ring_output.samples, &ring_output.write_index, sample_count, 440.0)
+// 每帧更新音频（根据实际帧时间计算生产量）
+update_audio :: proc(is_paused: bool, dt: f32 = 0) {
+	if !is_paused {
+		// 根据实际帧时间计算需要生产的 sample 数量
+		// dt = 0 时使用默认值（兼容旧调用）
+		frame_time := dt > 0 ? dt : (1.0 / f32(TARGET_FRAME_RATE))
+		samples_needed := int(f32(SAMPLE_RATE) * frame_time) * CHANNELS
+
+		// 限制单次生产量，避免过度生产
+		max_samples := SAMPLE_RATE * CHANNELS / 10  // 最多 100ms
+		if samples_needed > max_samples {
+			samples_needed = max_samples
+		}
+
+		ring_buffer_produce(ring_output.samples, &ring_output.write_index, samples_needed, 440.0)
 	}
+}
+
+// 获取 underrun 次数（用于调试）
+get_underrun_count :: proc() -> int {
+	return underrun_count
 }

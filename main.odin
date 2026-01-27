@@ -29,8 +29,8 @@ main :: proc() {
 	// name := rl.GetMonitorName(rl.GetCurrentMonitor())
 	// monitorRefreshRate := rl.GetMonitorRefreshRate(rl.GetCurrentMonitor())
 
-	screen_width := i32(5120 / 2)
-	screen_height := i32(2880 / 2)
+	screen_width := i32(5120 / 2 / 2)
+	screen_height := i32(2880 / 2 / 2)
 	target_fps := i32(32)
 
 	rl.SetTargetFPS(target_fps)
@@ -178,10 +178,10 @@ main :: proc() {
 			is_paused = !is_paused
 		}
 
-		// 更新音频
-		platform.update_audio(is_paused)
-
 		time_span := rl.GetFrameTime()
+
+		// 更新音频（传入实际帧时间）
+		platform.update_audio(is_paused, time_span)
 		// update and render
 		if !is_paused {
 			game_code.game_update_and_render(&game_memory, game_input, game_off_screen, time_span)
@@ -203,6 +203,11 @@ main :: proc() {
 		}
 		if !record_state.is_recording && !record_state.is_replaying {
 			rl.DrawText("L: Record/Replay | P: Pause", 10, status_y, 20, rl.WHITE)
+		}
+
+		c := platform.get_underrun_count()
+		if c > 0 {
+			fmt.println("音频缓冲区underrun", c)
 		}
 
 		rl.EndDrawing()
