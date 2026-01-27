@@ -104,6 +104,9 @@ ring_buffer_produce :: proc(
 		region1_size = sample_count
 	}
 
+	// 一个周期的时间，用于限制 audio_time 避免 float 精度问题
+	period := 1.0 / frequency
+
 	// 写入 region1 - 直接计算并写入
 	for i in 0 ..< region1_size / 2 {
 		sine_value := math.sin(2 * math.PI * frequency * audio_time)
@@ -113,6 +116,9 @@ ring_buffer_produce :: proc(
 		buffer[current_write + i * 2 + 1] = sample // 右声道
 
 		audio_time += dt
+		if audio_time >= period {
+			audio_time -= period
+		}
 	}
 
 	// 写入 region2 (如果需要)
@@ -125,6 +131,9 @@ ring_buffer_produce :: proc(
 			buffer[i * 2 + 1] = sample // 右声道
 
 			audio_time += dt
+			if audio_time >= period {
+				audio_time -= period
+			}
 		}
 		write_index^ = region2_size
 	} else {
@@ -184,7 +193,7 @@ update_audio :: proc(is_paused: bool, dt: f32 = 0) {
 		samples_needed := int(f32(SAMPLE_RATE) * frame_time) * CHANNELS
 
 		// 限制单次生产量，避免过度生产
-		max_samples := SAMPLE_RATE * CHANNELS / 10  // 最多 100ms
+		max_samples := SAMPLE_RATE * CHANNELS / 10 // 最多 100ms
 		if samples_needed > max_samples {
 			samples_needed = max_samples
 		}
