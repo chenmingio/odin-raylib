@@ -109,60 +109,78 @@ draw_image_simple :: proc(
 	buffer: OffScreenBuffer,
 	reverse: bool = false,
 ) {
-	draw_image_corp(pos, img, buffer, V2i{i32(img^.width), i32(img^.height)}, V2i{}, reverse)
+	full_size := V2i{i32(img^.width), i32(img^.height)}
+	draw_image_corp(pos, img, buffer, sprite_size = full_size, reverse = reverse)
 }
 
 draw_tile_map :: proc(grid_pos: V2i, tile_idx: V2i, img: ^image.Image, buffer: OffScreenBuffer) {
 	tiles_per_col :: 6
 	tile_size := i32(img^.height / tiles_per_col)
 
-	atlas_x := tile_idx.x * tile_size
-	atlas_y := tile_idx.y * tile_size
+	// 图集中 tile 的位置
+	atlas_offset := V2i{tile_idx.x * tile_size, tile_idx.y * tile_size}
 
-	x := grid_pos.x * tile_size + tile_size / 2
-	y := grid_pos.y * tile_size + tile_size / 2
-	draw_image_corp(V2i{x, y}, img, buffer, V2i{tile_size, tile_size}, V2i{atlas_x, atlas_y})
+	// 屏幕上的位置
+	screen_pos := V2i{
+		grid_pos.x * tile_size + tile_size / 2,
+		grid_pos.y * tile_size + tile_size / 2,
+	}
+
+	draw_image_corp(screen_pos, img, buffer, sprite_size = V2i{tile_size, tile_size}, atlas_offset = atlas_offset)
 }
 
-// size: 图片crop的尺寸
+// 从图集中裁剪并绘制图像
+// pos: 屏幕目标位置（左上角）
+// atlas_offset: 图集中的起始位置
+// sprite_size: 要绘制的 sprite 尺寸
 draw_image_corp :: proc(
 	pos: V2i,
-	img: ^image.Image, // 整个图片文件
+	img: ^image.Image,
 	buffer: OffScreenBuffer,
-	size: V2i = V2i{}, // 需要画出的部分的尺寸
-	offset: V2i = V2i{}, // 需要画出的部分的偏移
+	sprite_size: V2i = V2i{},
+	atlas_offset: V2i = V2i{},
 	reverse: bool = false,
 ) {
+	assert(atlas_offset.x >= 0 && atlas_offset.y >= 0)
 
-	assert(offset.x >= 0 && offset.y >= 0)
+	// 1. 计算实际要绘制的 sprite 尺寸（不超过图集边界）
+	draw_width := min(sprite_size.x, i32(img^.width) - atlas_offset.x)
+	draw_height := min(sprite_size.y, i32(img^.height) - atlas_offset.y)
 
-	// buffer上从哪里开始画(pixels)
-	minX := clamp(pos.x, 0, buffer.width)
-	maxX := clamp(pos.x + min(size.x, i32(img^.width) - offset.x), minX, buffer.width)
-	minY := clamp(pos.y, 0, buffer.height)
-	maxY := clamp(pos.y + min(size.y, i32(img^.height) - offset.y), minY, buffer.height)
+	// 2. 屏幕裁剪：计算可见区域
+	screen_min_x := clamp(pos.x, 0, buffer.width)
+	screen_max_x := clamp(pos.x + draw_width, screen_min_x, buffer.width)
+	screen_min_y := clamp(pos.y, 0, buffer.height)
+	screen_max_y := clamp(pos.y + draw_height, screen_min_y, buffer.height)
 
-	// 图像上开始读取的位置
-	offset_x := (pos.x >= 0 ? 0 : -pos.x) + offset.x
-	offset_y := (pos.y >= 0 ? 0 : -pos.y) + offset.y
+	// 3. 计算被屏幕左/上边缘裁掉的像素数
+	clip_left := screen_min_x - pos.x  // pos.x < 0 时为正
+	clip_top := screen_min_y - pos.y   // pos.y < 0 时为正
 
-	// 将像素缓冲预先转换为 u32 视图，避免在每一行循环中重复 transmute
-	pixels_u32 := (transmute([dynamic]u32)img^.pixels.buf)
+	// 4. 图像读取起始位置 = 图集偏移 + 屏幕裁剪偏移
+	src_start_x := atlas_offset.x + clip_left
+	src_start_y := atlas_offset.y + clip_top
 
-	for target_row in minY ..< maxY {
-		// 计算正确的 source 坐标
-		source_row := target_row - pos.y + offset_y // 相对于图像的行号
+	// 5. 可见区域的宽高
+	visible_width := screen_max_x - screen_min_x
+	visible_height := screen_max_y - screen_min_y
 
-		// image.pixels is []byte, so we need to multiply by 4 to get the correct offset
-		source_start := (source_row) * i32(img^.width) + offset_x
-		source_end := source_start + (maxX - minX)
+	if visible_width <= 0 || visible_height <= 0 {
+		return // 完全在屏幕外
+	}
 
-		// bytes
-		// source := (transmute([dynamic]u32)img^.pixels.buf)[source_start:source_end] //dynamic转换问题不太理解
-		source := pixels_u32[source_start:source_end]
+	// 预转换像素缓冲
+	pixels_u32 := transmute([dynamic]u32)img^.pixels.buf
 
-		target_start := target_row * buffer.width + minX
-		target := buffer.data[target_start:target_start + maxX - minX]
+	// 6. 逐行复制
+	for row in 0 ..< visible_height {
+		src_row := src_start_y + row
+		src_start := src_row * i32(img^.width) + src_start_x
+		source := pixels_u32[src_start:src_start + visible_width]
+
+		dst_row := screen_min_y + row
+		dst_start := dst_row * buffer.width + screen_min_x
+		target := buffer.data[dst_start:dst_start + visible_width]
 
 		blend(target, source, reverse)
 	}
@@ -208,17 +226,18 @@ draw_entity_animation :: proc(
 	}
 
 	frame := clips[entity.anim_frame_idx]
-	size := V2i{frame.frame.w, frame.frame.h}
-	offset := V2i{frame.frame.x, frame.frame.y}
-	pos := pos + animation.anchorOffset - V2i{frame.spriteSourceSize.w, frame.spriteSourceSize.h}
+	sprite_size := V2i{frame.frame.w, frame.frame.h}
+	atlas_offset := V2i{frame.frame.x, frame.frame.y}
+	// 调整位置：锚点偏移 - trimmed 偏移
+	draw_pos := pos + animation.anchorOffset - V2i{frame.spriteSourceSize.x, frame.spriteSourceSize.y}
 
 	reverse := entity.direction == Direction.Backward
-	draw_image_corp(pos, image, buffer, size, offset, reverse)
+	draw_image_corp(draw_pos, image, buffer, sprite_size, atlas_offset, reverse)
 
 	// 绘制entity体积框
 	draw_rectangle(
-		pos.x,
-		pos.y,
+		draw_pos.x,
+		draw_pos.y,
 		i32(meter_to_pixel(entity.size.x)),
 		i32(meter_to_pixel(entity.size.y)),
 		RED,
