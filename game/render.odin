@@ -130,9 +130,12 @@ draw_tile_map :: proc(grid_pos: V2i, tile_idx: V2i, img: ^image.Image, buffer: O
 }
 
 // 从图集中裁剪并绘制图像
-// pos: 屏幕目标位置（左上角）
-// atlas_offset: 图集中的起始位置
-// sprite_size: 要绘制的 sprite 尺寸
+//
+// 概念模型：
+//   1. sprite 放在 buffer 的 pos 位置，形成 sprite_rect
+//   2. sprite_rect 和 buffer_rect 求交集，得到 draw_rect（buffer 坐标系）
+//   3. 遍历 draw_rect 的每个点，反推 source 坐标，复制像素
+//
 draw_image_corp :: proc(
 	pos: V2i,
 	img: ^image.Image,
@@ -141,49 +144,57 @@ draw_image_corp :: proc(
 	atlas_offset: V2i = V2i{},
 	reverse: bool = false,
 ) {
-	assert(atlas_offset.x >= 0 && atlas_offset.y >= 0)
-
-	// 1. 计算实际要绘制的 sprite 尺寸（不超过图集边界）
-	draw_width := min(sprite_size.x, i32(img^.width) - atlas_offset.x)
-	draw_height := min(sprite_size.y, i32(img^.height) - atlas_offset.y)
-
-	// 2. 屏幕裁剪：计算可见区域
-	screen_min_x := clamp(pos.x, 0, buffer.width)
-	screen_max_x := clamp(pos.x + draw_width, screen_min_x, buffer.width)
-	screen_min_y := clamp(pos.y, 0, buffer.height)
-	screen_max_y := clamp(pos.y + draw_height, screen_min_y, buffer.height)
-
-	// 3. 计算被屏幕左/上边缘裁掉的像素数
-	clip_left := screen_min_x - pos.x  // pos.x < 0 时为正
-	clip_top := screen_min_y - pos.y   // pos.y < 0 时为正
-
-	// 4. 图像读取起始位置 = 图集偏移 + 屏幕裁剪偏移
-	src_start_x := atlas_offset.x + clip_left
-	src_start_y := atlas_offset.y + clip_top
-
-	// 5. 可见区域的宽高
-	visible_width := screen_max_x - screen_min_x
-	visible_height := screen_max_y - screen_min_y
-
-	if visible_width <= 0 || visible_height <= 0 {
-		return // 完全在屏幕外
+	// sprite 在 buffer 上占据的矩形（buffer 坐标系）
+	sprite_rect := Rectangle{
+		min = pos,
+		max = pos + sprite_size,
 	}
 
-	// 预转换像素缓冲
+	// buffer 边界
+	buffer_rect := Rectangle{
+		min = V2i{0, 0},
+		max = V2i{buffer.width, buffer.height},
+	}
+
+	// 求交集 = 实际要绘制的区域（buffer 坐标系）
+	draw_rect, ok := intersect_rect(sprite_rect, buffer_rect)
+	if !ok {
+		return // 完全不可见
+	}
+
 	pixels_u32 := transmute([dynamic]u32)img^.pixels.buf
+	img_width := i32(img^.width)
 
-	// 6. 逐行复制
-	for row in 0 ..< visible_height {
-		src_row := src_start_y + row
-		src_start := src_row * i32(img^.width) + src_start_x
-		source := pixels_u32[src_start:src_start + visible_width]
+	// 遍历 draw_rect 的每一行
+	for ty in draw_rect.min.y ..< draw_rect.max.y {
+		// 反推 source 坐标
+		sy := ty - pos.y + atlas_offset.y
+		sx := draw_rect.min.x - pos.x + atlas_offset.x
 
-		dst_row := screen_min_y + row
-		dst_start := dst_row * buffer.width + screen_min_x
-		target := buffer.data[dst_start:dst_start + visible_width]
+		// 这一行的宽度
+		width := draw_rect.max.x - draw_rect.min.x
+
+		// 获取 source 和 target 的行切片
+		src_start := sy * img_width + sx
+		source := pixels_u32[src_start:src_start + width]
+
+		dst_start := ty * buffer.width + draw_rect.min.x
+		target := buffer.data[dst_start:dst_start + width]
 
 		blend(target, source, reverse)
 	}
+}
+
+// 两个矩形求交集
+intersect_rect :: proc(a, b: Rectangle) -> (Rectangle, bool) {
+	result := Rectangle{
+		min = V2i{max(a.min.x, b.min.x), max(a.min.y, b.min.y)},
+		max = V2i{min(a.max.x, b.max.x), min(a.max.y, b.max.y)},
+	}
+
+	// 检查是否有效（有面积）
+	ok := result.min.x < result.max.x && result.min.y < result.max.y
+	return result, ok
 }
 
 draw_entity_image :: proc(
@@ -245,20 +256,6 @@ draw_entity_animation :: proc(
 		true,
 	)
 }
-
-intersect_images :: proc(a: Rectangle, b: Rectangle) -> (Rectangle, bool) {
-	intersection := Rectangle{}
-
-	intersection.min.x = max(a.min.x, b.min.x)
-	intersection.min.y = max(a.min.y, b.min.y)
-	intersection.max.x = min(a.max.x, b.max.x)
-	intersection.max.y = min(a.max.y, b.max.y)
-
-	exists := intersection.min.x < intersection.max.x && intersection.min.y < intersection.max.y
-
-	return intersection, exists
-}
-
 
 @(test)
 test_image :: proc(t: ^testing.T) {
