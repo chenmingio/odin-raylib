@@ -21,8 +21,7 @@ OffScreenBuffer :: struct {
 	height: i32,
 }
 
-// for screen space, 00 is top left, 11 is bottom right
-// x, y are top left
+// 绘制矩形（填充或边框）
 draw_rectangle :: proc(
 	x: i32,
 	y: i32,
@@ -30,22 +29,36 @@ draw_rectangle :: proc(
 	height: i32,
 	color: u32,
 	buffer: OffScreenBuffer,
-	is_line: bool = false,
+	outline: bool = false,
 ) {
-	x := max(0, x)
-	y := max(0, y)
+	// 输入矩形
+	rect := Rectangle{
+		min = V2i{x, y},
+		max = V2i{x + width, y + height},
+	}
 
-	minX := min(x, buffer.width)
-	maxX := min(x + width, buffer.width)
-	minY := min(y, buffer.height)
-	maxY := min(y + height, buffer.height)
-	for row in minY ..< maxY {
-		rowsOffset := row * buffer.width
-		if is_line && (row != minY && row != maxY - 1) {
-			buffer.data[rowsOffset + minX] = color
-			buffer.data[rowsOffset + maxX] = color
+	// buffer 边界
+	buffer_rect := Rectangle{
+		min = V2i{0, 0},
+		max = V2i{buffer.width, buffer.height},
+	}
+
+	// 求交集
+	draw_rect, ok := intersect_rect(rect, buffer_rect)
+	if !ok {
+		return
+	}
+
+	for ty in draw_rect.min.y ..< draw_rect.max.y {
+		row_start := ty * buffer.width
+
+		if outline && ty != draw_rect.min.y && ty != draw_rect.max.y - 1 {
+			// 边框模式：只画左右两个点
+			buffer.data[row_start + draw_rect.min.x] = color
+			buffer.data[row_start + draw_rect.max.x - 1] = color
 		} else {
-			pixels := buffer.data[rowsOffset + minX:rowsOffset + maxX]
+			// 填充模式：画整行
+			pixels := buffer.data[row_start + draw_rect.min.x:row_start + draw_rect.max.x]
 			slice.fill(pixels, color)
 		}
 	}
@@ -211,7 +224,7 @@ draw_entity_image :: proc(
 		i32(meter_to_pixel(entity^.size.y)),
 		RED,
 		buffer,
-		true,
+		outline = true,
 	)
 }
 
@@ -253,7 +266,7 @@ draw_entity_animation :: proc(
 		i32(meter_to_pixel(entity.size.y)),
 		RED,
 		buffer,
-		true,
+		outline = true,
 	)
 }
 
