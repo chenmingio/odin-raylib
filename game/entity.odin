@@ -49,7 +49,7 @@ name_to_entity_status :: proc(name: string) -> EntityStatus {
 }
 
 Entity :: struct {
-	pos:            WorldPos,
+	pos:            WorldPosition,
 	type:           EntityType,
 	size:           V2,
 	status:         EntityStatus,
@@ -64,11 +64,15 @@ active_entities :: proc(state: ^GameState) -> []Entity {
 	return state.entities[:state.entity_count]
 }
 
-// 辅助函数：添加实体
-add_entity :: proc(state: ^GameState, entity: Entity) {
+// 添加实体
+add_entity :: proc(state: ^GameState, entity: Entity, memory: Memory) {
+	// 添加entity储存
 	assert(state.entity_count < len(state.entities))
 	state.entities[state.entity_count] = entity
 	state.entity_count += 1
+	// 添加index到chunk中
+	chunk := get_world_chunk(state, entity.pos.chunkXYZ, memory)
+	block := chunk.first_block
 }
 
 // 辅助函数：删除实体（交换到末尾然后删除）

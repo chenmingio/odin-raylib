@@ -15,8 +15,6 @@ V3 :: linalg.Vector3f32
 V2i :: [2]i32
 V3i :: [3]i32
 
-chunkSize :: u32(16)
-
 SCALE :: f32(100.0)
 
 meter_to_pixel_f32 :: proc(x: f32) -> f32 {
@@ -37,7 +35,7 @@ meter_to_pixel :: proc {
 	meter_to_pixel_v3,
 }
 
-choose_status :: proc(
+next_status :: proc(
 	is_moving: bool,
 	is_attacking_1: bool,
 	is_attacking_2: bool,
@@ -59,7 +57,7 @@ choose_status :: proc(
 
 
 GameState :: struct {
-	camera_pos:   WorldPos,
+	camera_pos:   WorldPosition,
 	player:       ^Entity,
 	entities:     [10000]Entity,
 	entity_count: u32,
@@ -68,6 +66,7 @@ GameState :: struct {
 	tilemap1:     ^image.Image,
 	game_map:     [tileMapY][tileMapX]V2i,
 	rock_images:  [4]^image.Image,
+	world:        World,
 }
 
 CorppedImage :: struct {
@@ -120,9 +119,8 @@ update_and_render: UpdateAndRenderProc : proc(
 	if !game_memory.is_initialized {
 		// 初始化工作
 		// 设置初始相机位置
-		game_state^.camera_pos = WorldPos{V3i{}, V3{}}
+		game_state^.camera_pos = WorldPosition{V3i{}, V3{}}
 		// 地图
-
 		for y in 0 ..< tileMapY {
 			for x in 0 ..< tileMapX {
 				if (x == 0 && y == 0) {
@@ -146,11 +144,13 @@ update_and_render: UpdateAndRenderProc : proc(
 				}
 			}
 		}
+		// chunk
+		game_state^.chunks = make(map[WorldPosition]WorldChunk, game_memory.perm_alloc)
 
 		// 加载entities
 		// 以米为单位
 		player := Entity {
-			WorldPos{V3i{0, 0, 0}, V3{0, 0, 0}},
+			WorldPosition{V3i{0, 0, 0}, V3{0, 0, 0}},
 			EntityType.Player,
 			V2{0.8, 0.8},
 			EntityStatus.Idle,
@@ -163,7 +163,7 @@ update_and_render: UpdateAndRenderProc : proc(
 
 		for i in 0 ..< 10 {
 			entity := Entity {
-				WorldPos{V3i{i32(i), 0, 0}, V3{5, 5, 0}},
+				WorldPosition{V3i{i32(i), 0, 0}, V3{5, 5, 0}},
 				EntityType.Wall,
 				V2{wall_size, wall_size},
 				EntityStatus.Null,
@@ -246,13 +246,13 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	is_attacking_1 := input.controllers[0].action_left.ended_down
 	is_attacking_2 := input.controllers[0].action_down.ended_down
-	new_status := choose_status(is_moving, is_attacking_1, is_attacking_2)
+	next_status := next_status(is_moving, is_attacking_1, is_attacking_2)
 	if (game_state^.player^.status != EntityStatus.Null &&
-		   game_state^.player^.status != new_status) {
+		   game_state^.player^.status != next_status) {
 		game_state^.player^.anim_frame_idx = 0
 		game_state^.player^.anim_time = 0
 	}
-	game_state^.player^.status = new_status
+	game_state^.player^.status = next_status
 
 	game_state^.player^.pos = world_pos_add(
 		game_state^.player^.pos,
