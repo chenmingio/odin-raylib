@@ -73,6 +73,23 @@ add_entity :: proc(state: ^GameState, entity: Entity, memory: Memory) {
 	// 添加index到chunk中
 	chunk := get_world_chunk(state, entity.pos.chunkXYZ, memory)
 	block := chunk.first_block
+	for block.next != nil {
+		block = block.next
+	}
+
+	// 如果正好满了，需要新建一个block
+	if block.entity_indexes[len(block.entity_indexes) - 1] != 0 {
+		new_block := new(WorldEntityBlock, memory.perm_alloc)
+		block.next = new_block
+		block = new_block
+	}
+
+	for &slot in block.entity_indexes {
+		if slot == 0 {
+			slot = state.entity_count - 1
+			break
+		}
+	}
 }
 
 // 辅助函数：删除实体（交换到末尾然后删除）
