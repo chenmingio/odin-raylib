@@ -32,13 +32,13 @@ draw_rectangle :: proc(
 	outline: bool = false,
 ) {
 	// 输入矩形
-	rect := Rectangle{
+	rect := Rectangle {
 		min = V2i{x, y},
 		max = V2i{x + width, y + height},
 	}
 
 	// buffer 边界
-	buffer_rect := Rectangle{
+	buffer_rect := Rectangle {
 		min = V2i{0, 0},
 		max = V2i{buffer.width, buffer.height},
 	}
@@ -134,12 +134,18 @@ draw_tile_map :: proc(grid_pos: V2i, tile_idx: V2i, img: ^image.Image, buffer: O
 	atlas_offset := V2i{tile_idx.x * tile_size, tile_idx.y * tile_size}
 
 	// 屏幕上的位置
-	screen_pos := V2i{
+	screen_pos := V2i {
 		grid_pos.x * tile_size + tile_size / 2,
 		grid_pos.y * tile_size + tile_size / 2,
 	}
 
-	draw_image_corp(screen_pos, img, buffer, sprite_size = V2i{tile_size, tile_size}, atlas_offset = atlas_offset)
+	draw_image_corp(
+		screen_pos,
+		img,
+		buffer,
+		sprite_size = V2i{tile_size, tile_size},
+		atlas_offset = atlas_offset,
+	)
 }
 
 // 从图集中裁剪并绘制图像
@@ -158,13 +164,13 @@ draw_image_corp :: proc(
 	reverse: bool = false,
 ) {
 	// sprite 在 buffer 上占据的矩形（buffer 坐标系）
-	sprite_rect := Rectangle{
+	sprite_rect := Rectangle {
 		min = pos,
 		max = pos + sprite_size,
 	}
 
 	// buffer 边界
-	buffer_rect := Rectangle{
+	buffer_rect := Rectangle {
 		min = V2i{0, 0},
 		max = V2i{buffer.width, buffer.height},
 	}
@@ -200,7 +206,7 @@ draw_image_corp :: proc(
 
 // 两个矩形求交集
 intersect_rect :: proc(a, b: Rectangle) -> (Rectangle, bool) {
-	result := Rectangle{
+	result := Rectangle {
 		min = V2i{max(a.min.x, b.min.x), max(a.min.y, b.min.y)},
 		max = V2i{min(a.max.x, b.max.x), min(a.max.y, b.max.y)},
 	}
@@ -213,7 +219,7 @@ intersect_rect :: proc(a, b: Rectangle) -> (Rectangle, bool) {
 draw_entity_image :: proc(
 	pos: V2i,
 	image: ^image.Image,
-	entity: ^Entity,
+	entity: ^LowEntity,
 	buffer: OffScreenBuffer,
 ) {
 	draw_image_simple(pos, image, buffer)
@@ -232,7 +238,7 @@ draw_entity_image :: proc(
 draw_entity_animation :: proc(
 	pos: V2i,
 	animation: Animation,
-	entity: ^Entity,
+	entity: ^LowEntity,
 	buffer: OffScreenBuffer,
 	dt: f32,
 ) {
@@ -253,7 +259,8 @@ draw_entity_animation :: proc(
 	sprite_size := V2i{frame.frame.w, frame.frame.h}
 	atlas_offset := V2i{frame.frame.x, frame.frame.y}
 	// 调整位置：锚点偏移 - trimmed 偏移
-	draw_pos := pos + animation.anchorOffset - V2i{frame.spriteSourceSize.x, frame.spriteSourceSize.y}
+	draw_pos :=
+		pos + animation.anchorOffset - V2i{frame.spriteSourceSize.x, frame.spriteSourceSize.y}
 
 	reverse := entity.direction == Direction.Backward
 	draw_image_corp(draw_pos, image, buffer, sprite_size, atlas_offset, reverse)

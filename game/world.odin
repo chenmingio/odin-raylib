@@ -68,7 +68,7 @@ hashChunk :: proc(xyz: V3i) -> i32 {
 get_world_chunk :: proc(
 	state: ^GameState,
 	chunkXYZ: V3i,
-	memory: Maybe(Memory) = nil,
+	memory: Maybe(^Memory) = nil,
 ) -> ^WorldChunk {
 	h := hashChunk(chunkXYZ)
 	head := state.world.chunk_hash[h]

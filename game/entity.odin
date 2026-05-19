@@ -48,7 +48,7 @@ name_to_entity_status :: proc(name: string) -> EntityStatus {
 	return .Null
 }
 
-Entity :: struct {
+LowEntity :: struct {
 	pos:            WorldPosition,
 	type:           EntityType,
 	size:           V2,
@@ -58,14 +58,19 @@ Entity :: struct {
 	direction:      Direction,
 }
 
+HighEntity :: struct {
+	low_entity: ^LowEntity,
+	rel_pos:    V3,
+}
+
 
 // 辅助函数：获取活跃实体的 slice
-active_entities :: proc(state: ^GameState) -> []Entity {
+active_entities :: proc(state: ^GameState) -> []LowEntity {
 	return state.entities[:state.entity_count]
 }
 
 // 添加实体
-add_entity :: proc(state: ^GameState, entity: Entity, memory: Memory) {
+add_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) {
 	// 添加entity储存
 	assert(state.entity_count < len(state.entities))
 	state.entities[state.entity_count] = entity

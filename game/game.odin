@@ -58,8 +58,8 @@ next_status :: proc(
 
 GameState :: struct {
 	camera_pos:   WorldPosition,
-	player:       ^Entity,
-	entities:     [10000]Entity,
+	player:       ^LowEntity,
+	entities:     [10000]LowEntity,
 	entity_count: u32,
 	background:   ^image.Image,
 	unit_animate: Animation,
@@ -149,7 +149,7 @@ update_and_render: UpdateAndRenderProc : proc(
 
 		// 加载entities
 		// 以米为单位
-		player := Entity {
+		player := LowEntity {
 			WorldPosition{V3i{0, 0, 0}, V3{0, 0, 0}},
 			EntityType.Player,
 			V2{0.8, 0.8},
@@ -158,11 +158,11 @@ update_and_render: UpdateAndRenderProc : proc(
 			0,
 			Direction.Forward,
 		}
-		add_entity(game_state, player)
+		add_entity(game_state, player, game_memory)
 		game_state^.player = &game_state^.entities[0]
 
 		for i in 0 ..< 10 {
-			entity := Entity {
+			entity := LowEntity {
 				WorldPosition{V3i{i32(i), 0, 0}, V3{5, 5, 0}},
 				EntityType.Wall,
 				V2{wall_size, wall_size},
@@ -171,7 +171,7 @@ update_and_render: UpdateAndRenderProc : proc(
 				0,
 				Direction.Forward,
 			}
-			add_entity(game_state, entity)
+			add_entity(game_state, entity, game_memory)
 		}
 		// 石头
 		for i in 0 ..< 4 {
@@ -221,8 +221,10 @@ update_and_render: UpdateAndRenderProc : proc(
 		game_memory.is_initialized = true
 	}
 
+	// 绿布
 	draw_rectangle(0, 0, image_buffer.width, image_buffer.height, GREEN, image_buffer)
 
+	// 控制输入
 	move := V3{0, 0, 0}
 	if input.controllers[0].move_up.ended_down {
 		move += V3{0, 1, 0}
@@ -237,6 +239,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		move += V3{1, 0, 0}
 	}
 
+	// 运动模拟
 	player_speed :: 3.0
 
 	is_moving := move.x != 0 || move.y != 0 || move.z != 0
@@ -260,6 +263,9 @@ update_and_render: UpdateAndRenderProc : proc(
 	)
 
 	// game_state^.camera_pos = game_state^.player^.pos
+
+	// 绘制
+	sim_region := begin_sim(game_state, game_memory)
 
 	// 简单绘制tilemap
 	// draw map
