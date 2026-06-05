@@ -6,11 +6,11 @@
 
 ---
 
-## 动机
+## 概览
 
-### 为什么需要chunk？
+### 为什么需要 chunk？
 
-游戏里，Entity 的提取是按空间的，而不是简单遍历全部 entity。所以需要渲染或模拟某个区域时，先找到覆盖的 chunk，再从中提取 entity。
+游戏里 entity 的提取是按空间的，而不是简单遍历全部 entity。渲染或模拟某个区域时，先找到覆盖的 chunk，再从中提取 entity。
 
 | 场景 | 不用 chunk | 用 chunk |
 |------|-----------|---------|
@@ -18,77 +18,13 @@
 | 模拟 | 全量计算 | 只模拟相关区域的 entity |
 | 移动 | 无需更新索引 | 跨 chunk 时需更新索引 |
 
-```
-World
-├── ChunkHash[4096]         ← 固定 bucket 数组
-│   ├── bucket[0] → Chunk(0,0,0) → Chunk(...)  ← 同 bucket 链表
-│   ├── bucket[1] → nil
-│   ├── bucket[2] → Chunk(1,0,0)
-│   └── ...
-└── FirstFree               ← 空闲 block 回收链表
-```
-
-### Chunk需要覆盖多大的地图空间？
-
-| 太大 | 太小 |
-|------|------|
-| 每个 chunk 内 entity 太多，模拟开销大 | chunk 边界频繁跨越，索引更新频繁 |
-
-当前值：`chunkSideInMeters :: 30`，解决屏幕尺寸
-
----
-
-## 结构
-
-### Chunk本身存array里（和entity一样）还是动态分配？entity为什么要存array里？
-Entity：每帧批量遍历 entities[0..count]，连续内存让 CPU可以预取后续数据，所以需要数组保证连续。
-
-Chunk：永远是通过 hash 单个查找，拿到一个 chunk 处理完就完了，不存在"遍历所有 chunk"的场景。既然每次只访问一个，连不连续无所谓，动态分配更简单——不用预估上限，用多少分多少。
-
-### Chunk的结构如何设计？
-
-方案1:用xyz三位数组储存所有chunk。缺点：大部分chunk都是空的。
-方案2:动态分配chunk以后，用 hash map来索引。
-
-### hashmap的各种变体
-
-方案1： 使用odin的map，用xyz当key。问题：Odin 的 `map` 会自动扩容，破坏 arena 内存布局
-方案2： 用手动管理的固定 bucket + 链表。
-
-### map的value里放什么？
-方案1: chunk的值（包含了下一个chunk的指针）
-
-比如Casey 的 C 代码中 `chunk_hash[4096]` 直接存 `world_chunk` 结构体（inline），大部分 bucket 只有一个 chunk，避免一次指针跳转。由于是inline的value，无法表示nil，没有分配的bucket，就需要用 `ChunkX == TILE_CHUNK_UNINITIALIZED`
-
-方案2: 放chunk的指针
-Odin 中选择存 `^WorldChunk` 指针：
-- Odin 没有 C 的"未初始化哨兵"惯用法（`ChunkX == TILE_CHUNK_UNINITIALIZED`）
-- `Maybe` 会让结构体过大
-- 指针为 `nil` 即表示空 bucket，语义清晰
-
-### chunk里怎么储存entity？
-方案1. 使用entity引用链表，不实用block中间容器。问题：缓存命中差。16个node的地址可能在不同的缓存块里，需要多次读取缓存。相反利用block来强制他们在一个缓存块里，速度快100倍。
-方案2. 使用block（unrolled linked list）来储存16个entity地址。
-方案3. 存entity的index，而不是地址。entities是固定长度列表，所以可以用index来索引。chunk这种动态分配的就不行。
-
-| 方式 | 优点 | 缺点 |
-|------|------|------|
-| **地址（指针）** | 直接访问，零开销 | entity 移动时需通知所有引用者 |
-| **Id 索引** | entity 移动不影响引用 | 需要一次间接查找 |
-
-方案4: 追加一个generation field，该机制用于去中心化引用的失效检测（id + generation）。比如多个模块引用了entity，然后entity消失了，他们的引用失效了。但我不想中心化通知每个模块，就用一个版本号来管理。 
-
-当前 chunk 的 entity index 是中心化管理的，暂不需要 generation。
-
-当前方案：block 中存 entity 的**数组索引**（u32），不存指针。
-
 ### 数据结构
 
 ```odin
 WorldEntityBlock :: struct {
     entity_count: u32,
-    entity_index: [16]u32,          // 每 block 最多 16 个 entity 索引
-    next:         ^WorldEntityBlock, // 溢出时链接下一个 block
+    entity_index: [16]u32,            // 每 block 最多 16 个 entity 索引
+    next:         ^WorldEntityBlock,  // 溢出时链接下一个 block
 }
 
 WorldChunk :: struct {
@@ -103,15 +39,6 @@ World :: struct {
     first_free:          ^WorldEntityBlock,  // 空闲 block 回收链表
 }
 ```
-
-### 为什么 Chunk 和 Entity 用不同的存储方式？
-
-| | WorldChunk | WorldEntityBlock |
-|------|-----------|-----------------|
-| **访问模式** | 按 XYZ 跳跃查找 | 批量/连续遍历 |
-| **链表粒度** | 一个 chunk 一个节点 | 16 个 entity 一个节点 |
-| **原因** | chunk 是容器，数量少，跳跃查找 OK | entity 数量多，16 个一组提高缓存命中 |
-
 
 ### 关系图
 
@@ -130,16 +57,13 @@ World
 └── first_free → WorldEntityBlock → WorldEntityBlock → nil  (回收链表)
 ```
 
-### Hash 函数
+### 关键参数
 
-```odin
-hashChunk :: proc(xyz: V3i) -> i32 {
-    return xyz.x * 19 + xyz.y * 7 + xyz.z * 3
-}
-// bucket = hash & (4096 - 1)
-```
-
-查找/创建 chunk：遍历 bucket 链表，找到匹配的返回；未找到则在 arena 上分配新 chunk 插入头部。参考 `GetWorldChunk()`（handmade_world.cpp:66-113）。
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| `chunkSideInMeters` | 30 | 大约覆盖一个屏幕；过大→单 chunk entity 太多，过小→跨 chunk 频繁 |
+| `chunk_hash` bucket 数 | 4096 | 2 的幂，可用 `& (4096-1)` 快速取模 |
+| 每 block entity 数 | 16 | `16 × 4 字节 = 64 字节`，正好一个 cache line |
 
 ---
 
@@ -151,7 +75,7 @@ hashChunk :: proc(xyz: V3i) -> i32 {
 1. entity 存入 GameState.entities[] 数组
 2. 根据 entity.pos.chunkXYZ 找到（或创建）chunk
 3. 在 chunk 的 first_block 中插入 entity 索引
-4. block 满 16 个 → 从 first_free 取空闲 block，或分配新 block
+4. block 满 16 个 → 从 first_free 取空闲 block，或在 arena 上分配新 block
 ```
 
 参考 `ChangeEntityLocationRaw()` 的 NewP 分支（handmade_world.cpp:256-281）。
@@ -179,6 +103,122 @@ hashChunk :: proc(xyz: V3i) -> i32 {
 
 参考 `ChangeEntityLocationRaw()` 的 OldP 分支（handmade_world.cpp:218-253）。
 
+### 查找/创建 chunk
+
+```odin
+hashChunk :: proc(xyz: V3i) -> i32 {
+    return xyz.x * 19 + xyz.y * 7 + xyz.z * 3
+}
+// bucket = hash & (4096 - 1)
+```
+
+遍历 bucket 链表，找到匹配的返回；未找到则在 arena 上分配新 chunk 插入头部。参考 `GetWorldChunk()`（handmade_world.cpp:66-113）。
+
+### first_free 的回收时机
+
+remove entity 后若 block 空了，**整个 block 摘出来挂到 `first_free` 链表头部**；下次需要新 block 时优先从 `first_free` 取，取不到再向 arena 申请。
+
+> 为什么不直接释放？arena 是 bump allocator，不支持单点释放，所以用 free list 复用。
+
+---
+
+## 设计决策
+
+### 决策 1：Chunk 用 hash map，不用 3D 数组
+
+**选择**：动态分配 chunk + hash map 索引
+
+**备选**：
+- A. 用 `[X][Y][Z]Chunk` 三维数组储存所有 chunk
+
+**理由**：
+- A 的问题：地图无限大，大部分 chunk 是空的，浪费内存
+- 动态分配：用多少分多少
+- chunk 的访问模式是"按 XYZ 跳跃查找单个"，不需要连续内存
+
+### 决策 2：手动 hash，不用 Odin 的 map
+
+**选择**：固定 bucket 数组 `[4096]^WorldChunk` + 链表
+
+**备选**：
+- A. 用 Odin 的 `map[V3i]^WorldChunk`
+
+**理由**：
+- A 的问题：Odin 的 `map` 会自动扩容，破坏 arena 内存布局
+- 手动 hash：bucket 数固定，节点都在 arena 上，内存布局可控
+
+### 决策 3：bucket 存 `^WorldChunk` 指针，不存本体
+
+**选择**：`chunk_hash: [4096]^WorldChunk`
+
+**备选**：
+- A. Casey 的 C 代码：`chunk_hash: [4096]WorldChunk`（inline 存本体）
+
+**理由**：
+- A 的优点：大部分 bucket 只有一个 chunk，省一次指针跳转
+- A 的问题：inline 没法表示"空 bucket"，需要哨兵值（`ChunkX == TILE_CHUNK_UNINITIALIZED`）
+- Odin 没有 C 的哨兵惯用法；用 `Maybe` 会让结构体过大
+- 存指针：`nil` 即空 bucket，语义清晰
+
+### 决策 4：block 存 entity index，不存本体或指针
+
+**选择**：block 存 `[16]u32` 索引，entity 本体放 `GameState.entities[]` 数组
+
+**备选**：
+- A. block 直接存 entity 本体
+- B. block 存 `^Entity` 指针
+
+**理由**：
+- A 的问题：
+  - 移动 entity = 拷贝整个 struct（几百字节 vs 4 字节）
+  - 引用不稳定（block 重分配后地址变）
+  - 全局遍历不友好（数据散落在各 chunk 的 block 里）
+  - 内存浪费（半空 block 浪费几百字节 × 16）
+- B 的问题：block 节点动态分配，entity 跨 chunk 移动后指针失效
+- 选 index：
+  - entity 本体在 `entities[]` 连续内存，cache 友好
+  - index 是 u32（4 字节），移动便宜
+  - 数组 index 稳定，引用不失效
+
+### 决策 5：block 用 unrolled linked list（16 个一组）
+
+**选择**：每个 block 装 16 个 entity index，溢出时链接下一个 block
+
+**备选**：
+- A. 普通链表（每个节点一个 entity index）
+
+**理由**：
+- A 的问题：链表节点散落在堆上，遍历时每读一个就要跳一次缓存
+- unrolled list：
+  - `16 × 4 字节 = 64 字节`，**正好一个 cache line**
+  - 一次缓存读拿到 16 个 index
+  - 16 满了再走 `next` 跳一次缓存
+- Casey 实测：相比普通链表快约 100 倍
+
+### 决策 6：暂不引入 generation 字段
+
+**选择**：block 只存 `u32` index，不带 generation
+
+**备选**：
+- A. 存 `{id, generation}`，访问时校验 generation 是否匹配
+
+**理由**：
+- generation 用于**去中心化的引用失效检测**：多个模块各自持有 entity 引用，entity 死了不需要中心化通知每个模块，下次访问检查 generation 自动发现失效
+- 当前 chunk 的 entity index 是**中心化管理**的（chunk 知道自己持有哪些 entity，entity 死了 chunk 主动移除）
+- 如果未来出现"多个模块各自缓存 entity 引用"的场景，再引入 generation
+
+### 决策 7：Chunk 和 EntityBlock 用不同的链表粒度
+
+**选择**：chunk 一个节点一个；entity block 一个节点 16 个
+
+**理由**：
+
+| | WorldChunk | WorldEntityBlock |
+|------|-----------|-----------------|
+| **访问模式** | 按 XYZ 跳跃查找单个 | 批量/连续遍历 |
+| **链表粒度** | 一个 chunk 一个节点 | 16 个 entity 一个节点 |
+| **为什么** | 数量少，跳跃访问，连续无意义 | 数量多，批量遍历，要缓存命中 |
+
 ---
 
 ## 参见
@@ -189,4 +229,4 @@ hashChunk :: proc(xyz: V3i) -> i32 {
 
 ---
 
-**最后更新**: 2026-02-11
+**最后更新**: 2026-06-04
