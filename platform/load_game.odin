@@ -59,9 +59,10 @@ load_game_code :: proc() -> RayLibGameCode {
 		result.is_valid = true
 
 		// 更新文件修改时间
-		file_info, err := os.stat(GAME_DLL_PATH)
+		file_info, err := os.stat(GAME_DLL_PATH, context.allocator)
 		if err == os.ERROR_NONE {
 			result.last_write_time = file_info.modification_time
+			os.file_info_delete(file_info, context.allocator)
 		} else {
 			fmt.eprintln("获取游戏库文件信息失败:", err)
 		}

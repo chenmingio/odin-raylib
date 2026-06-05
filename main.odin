@@ -160,9 +160,10 @@ main :: proc() {
 			frame_counter = 0
 
 			// 查看游戏库，如果修改时间晚于上次的记录时间，就重新加载
-			file_info, err := os.stat(platform.GAME_DLL_PATH)
+			file_info, err := os.stat(platform.GAME_DLL_PATH, context.allocator)
 			if err == os.ERROR_NONE {
 				current_write_time := file_info.modification_time
+				os.file_info_delete(file_info, context.allocator)
 				if time.diff(game_code.last_write_time, current_write_time) > 0 {
 					fmt.println("游戏代码已更新，重新加载...")
 					platform.unload_game_code(&game_code)

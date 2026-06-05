@@ -2,13 +2,14 @@ package platform
 
 import "../game"
 import "core:fmt"
+import "core:io"
 import "core:os"
 
 // 录制回放状态（对应 C 版本的 RayLibState 部分功能）
 RayLibState :: struct {
 	total_size:         int,
-	write_input_stream: os.Handle,
-	read_input_stream:  os.Handle,
+	write_input_stream: ^os.File,
+	read_input_stream:  ^os.File,
 	is_recording:       bool,
 	is_replaying:       bool,
 	game_memory_block:  rawptr,
@@ -19,7 +20,7 @@ RayLibState :: struct {
 start_recording :: proc(state: ^RayLibState, filename: string) {
 	assert(!state.is_recording && !state.is_replaying, "不能同时录制和回放")
 
-	handle, err := os.open(filename, os.O_CREATE | os.O_WRONLY | os.O_TRUNC, 0o644)
+	handle, err := os.open(filename, os.O_CREATE | os.O_WRONLY | os.O_TRUNC)
 	assert(err == os.ERROR_NONE, "打开录制文件失败")
 
 	// 先保存整个游戏内存状态到文件开头
@@ -72,7 +73,7 @@ loop_read_input :: proc(state: ^RayLibState, input: ^game.Input) {
 	if bytes_read == 0 {
 		// 到达文件末尾，重新开始回放循环
 		// 1. 重新定位到文件开头
-		os.seek(state.read_input_stream, 0, os.SEEK_SET)
+		os.seek(state.read_input_stream, 0, io.Seek_From.Start)
 		// 2. 重新恢复游戏内存状态到录制开始时的状态
 		os.read_ptr(state.read_input_stream, state.game_memory_block, state.total_size)
 		// 3. 现在文件指针已经在输入数据开头，读取第一个输入

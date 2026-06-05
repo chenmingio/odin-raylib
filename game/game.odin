@@ -201,11 +201,11 @@ update_and_render: UpdateAndRenderProc : proc(
 			game_memory.temp_alloc,
 		)
 		assert(err_load_unit_img == nil)
-		unit_json, ok := os.read_entire_file(
+		unit_json, json_err := os.read_entire_file(
 			"resources/Units/Warrior.json",
 			game_memory.temp_alloc,
 		)
-		assert(ok)
+		assert(json_err == nil)
 		unit_animate := AseSpriteSheet{}
 		parse_err := json.unmarshal(unit_json, &unit_animate)
 		assert(parse_err == nil)
