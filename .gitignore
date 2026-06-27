@@ -33,6 +33,9 @@ Temporary Items
 
 /build
 
+# Accidental Odin build output when -out:build/game is omitted.
+/*.bin
+
 *.dat
 
 *.png
