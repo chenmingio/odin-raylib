@@ -1,0 +1,80 @@
+[
+  {
+    "label": "Build Debug",
+    "command": "sh",
+    "args": [
+      "-c",
+      "set -ex && mkdir -p build && odin build . -debug -out:build/game -o:none && odin build game -out:build/game-lib.dylib -o:none -debug -build-mode:shared"
+    ],
+    "reveal": "always"
+  },
+  {
+    "label": "Build Platform",
+    "command": "sh",
+    "args": [
+      "-c",
+      "set -x && mkdir -p build && odin build . -debug -out:build/game -o:none"
+    ],
+    "reveal": "always"
+  },
+  {
+    "label": "Build Game Library",
+    "command": "sh",
+    "args": [
+      "-c",
+      "set -x && odin build game -out:build/game-lib.dylib -o:none -debug -build-mode:shared"
+    ],
+    "reveal": "always"
+  },
+  {
+    "label": "Build Release",
+    "command": "sh",
+    "args": [
+      "-c",
+      "set -x && mkdir -p build && odin build . -out:build/game -o:speed && odin build game -out:build/game-lib.dylib -o:speed -build-mode:shared"
+    ],
+    "reveal": "always"
+  },
+  {
+    "label": "Run Game",
+    "command": "sh",
+    "args": [
+      "-c",
+      "set -ex && mkdir -p build && odin build . -debug -out:build/game -o:none && odin build game -out:build/game-lib.dylib -o:none -debug -build-mode:shared && ./build/game"
+    ],
+    "reveal": "always"
+  },
+  {
+    "label": "Clean Build",
+    "command": "rm",
+    "args": ["-rf", "build"],
+    "reveal": "always"
+  },
+  {
+    "label": "Run Tests (Current Directory)",
+    "command": "sh",
+    "args": [
+      "-c",
+      "set -x && odin test $ZED_DIRNAME"
+    ],
+    "reveal": "always"
+  },
+  {
+    "label": "Run Tests (Platform)",
+    "command": "sh",
+    "args": [
+      "-c",
+      "set -x && odin test platform"
+    ],
+    "reveal": "always"
+  },
+  {
+    "label": "Run Tests (Game)",
+    "command": "sh",
+    "args": [
+      "-c",
+      "set -x && odin test game"
+    ],
+    "reveal": "always"
+  }
+]
