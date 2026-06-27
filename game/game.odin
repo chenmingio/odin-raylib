@@ -144,10 +144,7 @@ update_and_render: UpdateAndRenderProc : proc(
 				}
 			}
 		}
-		// chunk
-		game_state^.chunks = make(map[WorldPosition]WorldChunk, game_memory.perm_alloc)
-
-		// 加载entities
+		// 初始化玩家
 		// 以米为单位
 		player := LowEntity {
 			WorldPosition{V3i{0, 0, 0}, V3{0, 0, 0}},
@@ -161,6 +158,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		add_entity(game_state, player, game_memory)
 		game_state^.player = &game_state^.entities[0]
 
+		// 初始化地图
 		for i in 0 ..< 10 {
 			entity := LowEntity {
 				WorldPosition{V3i{i32(i), 0, 0}, V3{5, 5, 0}},
@@ -184,7 +182,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			game_state^.rock_images[i] = rock
 		}
 
-
+		// 加载asset
 		// 载入地面
 		tilemap1, err_load_tilemap1 := image.load_from_file(
 			"resources/Terrain/Tilemap_color1.png",
@@ -217,11 +215,11 @@ update_and_render: UpdateAndRenderProc : proc(
 		)
 
 
-		// 完成
+		// 完成初始化
 		game_memory.is_initialized = true
 	}
 
-	// 绿布
+	// 画一个绿布
 	draw_rectangle(0, 0, image_buffer.width, image_buffer.height, GREEN, image_buffer)
 
 	// 控制输入
@@ -264,8 +262,12 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	// game_state^.camera_pos = game_state^.player^.pos
 
-	// 绘制
+	// 准备好初始条件（物体，初始速度）以后，开始区域计算模拟
 	sim_region := begin_sim(game_state, game_memory)
+	simulate(&sim_region)
+	end_sim(game_state, &sim_region, game_memory)
+
+	// 绘制
 
 	// 简单绘制tilemap
 	// draw map

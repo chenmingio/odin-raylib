@@ -11,6 +11,8 @@
 
 ### high entity需要复制low entity的内容吗？
 不要，不然就有同步的问题了。
+### high entity和simulate使用相对坐标还是绝对坐标？
+相对坐标，因为需要float运算
 
 
 ## 流程

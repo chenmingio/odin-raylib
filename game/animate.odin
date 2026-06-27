@@ -88,6 +88,8 @@ animation_from_ase_sprite_sheet :: proc(
 			n, err := append(&clip.frames, frame)
 			assert(err == nil, "append failed")
 		}
+
+		assert(len(clip.frames) > 0)
 	}
 
 	return result

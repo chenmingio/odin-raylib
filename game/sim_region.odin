@@ -8,23 +8,27 @@ SimRegion :: struct {
 	space:             Rectangle,
 }
 
+// 加载相关entity到high区
 begin_sim :: proc(state: ^GameState, memory: ^Memory) -> SimRegion {
 	result := SimRegion{}
-	// which chunks?
+	// 根据camera的坐标找到chunk
 	for x in state.camera_pos.chunkXYZ.x ..< state.camera_pos.chunkXYZ.x + 1 {
 		for y in state.camera_pos.chunkXYZ.y ..< state.camera_pos.chunkXYZ.y + 1 {
 			for z in state.camera_pos.chunkXYZ.z ..< state.camera_pos.chunkXYZ.z + 1 {
-				// load chunk data
 				chunk := get_world_chunk(state, V3i{x, y, z}, memory)
 				assert(chunk != nil)
 
 				// copy entity values into SimRegion
 				for block := chunk.first_block; block != nil; block = block.next {
-					for entity_id in block.entity_indexes[:block.entity_count] {
-						low_entity := &state.entities[entity_id]
+					for low_entity_storage_id in block.entity_indexes[:block.entity_count] {
+						low_entity := &state.entities[low_entity_storage_id]
 						high_entity := HighEntity {
-							low_entity = low_entity,
-							rel_pos    = relative_pos(low_entity.pos, state.camera_pos),
+							low_entity               = low_entity,
+							low_entity_storage_index = low_entity_storage_id,
+							rel_pos                  = relative_pos(
+								low_entity.pos,
+								state.camera_pos,
+							),
 						}
 						result.high_entities[result.high_entity_count] = high_entity
 
@@ -60,14 +64,49 @@ simulate :: proc(sim_region: ^SimRegion) {
 	}
 }
 
+// 模拟的浮点坐标转换为low entity的低精度坐标
+world_pos_add_rel :: proc(rel_pos: [3]f32, camera_pos: WorldPosition) -> WorldPosition {
+	result := camera_pos
+	result.offset.x += rel_pos.x
+	result.offset.y += rel_pos.y
+	result.offset.z += rel_pos.z
 
-end_sim :: proc(state: ^GameState, sim_region: ^SimRegion) {
+	return canonicalize(result)
+}
+
+// 重新放置low entity的chunk位置
+reIndex :: proc(
+	low_entity: ^LowEntity,
+	low_entity_storage_index: u32,
+	new_pos: WorldPosition,
+	state: ^GameState,
+	memory: ^Memory,
+) {
+	// 同一个chunk里不用变
+	if (hashChunk(low_entity.pos.chunkXYZ) == hashChunk(new_pos.chunkXYZ)) {
+		return
+	}
+
+	oldPos := low_entity.pos
+	old_chunk := get_world_chunk(state, oldPos.chunkXYZ, memory)
+	assert(old_chunk != nil)
+
+	remove_entity_index_from_hash_chunk(low_entity_storage_index, old_chunk, state)
+
+	add_entity_index_to_hash_chunk(state, memory, low_entity_storage_index, new_pos.chunkXYZ)
+}
+
+// 把计算好的high entity对应的状态（目前是未知）更新回原来的low entity
+end_sim :: proc(state: ^GameState, sim_region: ^SimRegion, memory: ^Memory) {
 	high_entities := sim_region.high_entities[:sim_region.high_entity_count]
-
 	for high_entity in high_entities {
-		new_pos := relative_world_pos(high_entity.rel_pos, state.camera_pos)
-		high_entity.low_entity.pos = new_pos
-		reIndex(high_entity.low_entity) // 调整index
-		// Implement end simulation logic here
+		new_pos := world_pos_add_rel(high_entity.rel_pos, state.camera_pos)
+		reIndex(
+			high_entity.low_entity,
+			high_entity.low_entity_storage_index,
+			new_pos,
+			state,
+			memory,
+		)
 	}
 }

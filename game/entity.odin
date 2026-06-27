@@ -59,8 +59,9 @@ LowEntity :: struct {
 }
 
 HighEntity :: struct {
-	low_entity: ^LowEntity,
-	rel_pos:    V3,
+	low_entity:               ^LowEntity,
+	low_entity_storage_index: u32,
+	rel_pos:                  V3,
 }
 
 
@@ -69,32 +70,72 @@ active_entities :: proc(state: ^GameState) -> []LowEntity {
 	return state.entities[:state.entity_count]
 }
 
-// 添加实体
-add_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) {
-	// 添加entity储存
-	assert(state.entity_count < len(state.entities))
-	state.entities[state.entity_count] = entity
-	state.entity_count += 1
-	// 添加index到chunk中
-	chunk := get_world_chunk(state, entity.pos.chunkXYZ, memory)
-	block := chunk.first_block
-	for block.next != nil {
-		block = block.next
+// 添加entity-index到chunk HashMap里
+add_entity_index_to_hash_chunk :: proc(
+	state: ^GameState,
+	memory: ^Memory,
+	entity_index: u32,
+	chunkPos: V3i,
+) {
+	chunk := get_world_chunk(state, chunkPos, memory)
+
+	// 如果正好满了，需要新建一个block作为first block放在顶部
+	if chunk.first_block.entity_count == 16 {
+		new_block := get_new_block(&state.world, memory)
+		new_block.next = chunk.first_block
+		chunk.first_block = new_block
 	}
 
-	// 如果正好满了，需要新建一个block
-	if block.entity_indexes[len(block.entity_indexes) - 1] != 0 {
-		new_block := new(WorldEntityBlock, memory.perm_alloc)
-		block.next = new_block
-		block = new_block
-	}
+	first_block := chunk.first_block
+	first_block.entity_indexes[first_block.entity_count] = entity_index
+	first_block.entity_count += 1
+}
 
-	for &slot in block.entity_indexes {
-		if slot == 0 {
-			slot = state.entity_count - 1
-			break
+remove_entity_index_from_hash_chunk :: proc(
+	low_entity_storage_index: u32,
+	chunk: ^WorldChunk,
+	state: ^GameState,
+) {
+	chunk := get_world_chunk(state, chunk.chunkXYZ)
+	// 找到含有entity index的block
+	target_slot_idx: u32
+	target_block: ^WorldEntityBlock
+	last_slot_index: u32
+
+	// invariant是“在first block里找空位，后面block都是满的“
+	// 从first block里找最后一个补过去
+	first_block := chunk.first_block
+	assert(first_block.entity_count > 0)
+	last_slot_storage_index_in_first_block :=
+		first_block.entity_indexes[first_block.entity_count - 1]
+
+	for block := chunk.first_block; block != nil; block = block.next {
+		for idx in 0 ..< block.entity_count {
+			if (block.entity_indexes[idx] == low_entity_storage_index) {
+				block.entity_indexes[idx] = last_slot_storage_index_in_first_block
+				first_block.entity_count -= 1
+				break
+			}
 		}
 	}
+
+	// 如果first block空了，回收他
+	if first_block.entity_count == 0 {
+		chunk.first_block = first_block.next
+		first_block.next = nil
+		free_block := state.world.first_free_entity_block
+		state.world.first_free_entity_block = first_block
+		first_block.next = free_block
+	}
+}
+
+add_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) {
+	// 添加entity数据储存
+	assert(state.entity_count < len(state.entities))
+	state.entities[state.entity_count] = entity
+	// 添加entity index
+	add_entity_index_to_hash_chunk(state, memory, state.entity_count, entity.pos.chunkXYZ)
+	state.entity_count += 1
 }
 
 // 辅助函数：删除实体（交换到末尾然后删除）

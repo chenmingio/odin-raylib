@@ -7,22 +7,21 @@ WorldPosition :: struct {
 
 WorldEntityBlock :: struct {
 	entity_indexes: [16]u32,
-	entity_count:   u32,
+	entity_count:   u32, // 使用count方便slice操作。如果用0来控制结尾，操作更复杂，不如多一个index直观。
 	next:           ^WorldEntityBlock,
 }
 
 WorldChunk :: struct {
-	first_block:  ^WorldEntityBlock,
-	// chunk hash里，同一个bucket里的下一个chunk
-	next_in_hash: ^WorldChunk,
+	first_block:  ^WorldEntityBlock, // block是固定容量的储存容器，链表结构，动态创建，用freeList回收不用的
 	chunkXYZ:     V3i,
+	next_in_hash: ^WorldChunk, // chunk hash里同一个bucket里的下一个chunk
 }
 
 World :: struct {
-	tileSideInMeters:    f32,
-	chunk_dim_in_meters: V3i,
-	chunk_hash:          [4096]^WorldChunk,
-	first_free:          ^WorldEntityBlock,
+	tileSideInMeters:        f32,
+	chunk_dim_in_meters:     V3i,
+	chunk_hash:              [4096]^WorldChunk, // 4096个桶，每个桶里面是worldChunk的链表，每个chunk的xyz不同
+	first_free_entity_block: ^WorldEntityBlock,
 }
 
 chunkSideInMeters :: 30
@@ -62,14 +61,26 @@ world_pos_add :: proc(p: WorldPosition, d: V3) -> WorldPosition {
 }
 
 hashChunk :: proc(xyz: V3i) -> i32 {
-	return xyz.x * 19 + xyz.y * 7 + xyz.z * 3
+	return (xyz.x * 19 + xyz.y * 7 + xyz.z * 3) %% 4096
 }
 
-get_world_chunk :: proc(
-	state: ^GameState,
-	chunkXYZ: V3i,
-	memory: Maybe(^Memory) = nil,
-) -> ^WorldChunk {
+// 从freelist里找一个block，如果没有free再动态分配一个block
+get_new_block :: proc(world: ^World, memory: ^Memory) -> ^WorldEntityBlock {
+	first_free := world.first_free_entity_block
+	if (first_free == nil) {
+		return new(WorldEntityBlock, memory.perm_alloc)
+	} else {
+		next_free := first_free.next
+		world.first_free_entity_block = next_free
+		first_free.next = nil
+		return first_free
+	}
+
+}
+
+// 纯读取xyz所在的chunk：不传memory
+// 获取xyz的chunk用来储存，必要时创建新的chunk/block：需要传memory
+get_world_chunk :: proc(state: ^GameState, chunkXYZ: V3i, memory: ^Memory = nil) -> ^WorldChunk {
 	h := hashChunk(chunkXYZ)
 	head := state.world.chunk_hash[h]
 	// 如果通过链表找到符合XYZ的chunk，直接返回
@@ -79,14 +90,11 @@ get_world_chunk :: proc(
 		}
 	}
 
-	// 不然就创建一个新chunk
-	mem, ok := memory.?
-	if !ok {
-		panic("Chunk not found and no memory provided for creation")
-	}
-	new_chunk := new(WorldChunk, mem.perm_alloc)
-	new_block := new(WorldEntityBlock, mem.perm_alloc)
-	new_chunk^ = WorldChunk{new_block, nil, chunkXYZ}
+	// 需要新建chunk的情况
+	assert(memory != nil, "memory should be available for chunk creation")
+	new_chunk := new(WorldChunk, memory.perm_alloc)
+	new_block := get_new_block(&state.world, memory)
+	new_chunk^ = WorldChunk{new_block, chunkXYZ, nil}
 
 	new_chunk.next_in_hash = state.world.chunk_hash[h]
 	state.world.chunk_hash[h] = new_chunk
