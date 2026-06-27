@@ -88,9 +88,14 @@ main :: proc() {
 	assert(permanent_storage != nil)
 	assert(temporary_storage != nil)
 
+	// GameState固定放在permanent_storage开头，arena从GameState后面开始分配。
+	game_state_size := size_of(game.GameState)
+	assert(permanent_storage_size > game_state_size)
+	permanent_arena_storage := permanent_storage[game_state_size:]
+
 	// 构建arena分配器. Arena的构造器需要传入arena结构体和data slice，方便你直接操作data区域
 	permanent_arena := mem.Arena{} // 这里储存着Arena结构体，包括元数据
-	mem.arena_init(&permanent_arena, permanent_storage) // 第二个参数就是data slice
+	mem.arena_init(&permanent_arena, permanent_arena_storage) // 第二个参数就是data slice
 	permanent_arena_allocator := mem.arena_allocator(&permanent_arena)
 	// 修改默认的allocator会影响odin os/fmt的内存分配，把os信息写到我的memory里去了！
 	// context.allocator = permanent_arena_allocator // 修改默认分配器为Arena分配器
