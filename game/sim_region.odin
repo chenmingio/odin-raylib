@@ -46,8 +46,13 @@ shouldCollide :: proc(ety_a: ^HighEntity, ety_b: ^HighEntity) -> bool {
 	return true
 }
 
+drawCollideBody :: proc(_: HighEntity) {
+
+}
+
 collide :: proc(ety_a: ^HighEntity, ety_b: ^HighEntity) {
-	// Implement collision logic here
+	// 画出碰撞体积
+	//
 }
 
 simulate :: proc(sim_region: ^SimRegion) {

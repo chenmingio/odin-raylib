@@ -21,20 +21,28 @@ OffScreenBuffer :: struct {
 	height: i32,
 }
 
+// use buffer pixel pos
+draw_entity_body_rectangle :: proc(anchor_pos: V2i, size_px: V2i, buffer: OffScreenBuffer) {
+	draw_rectangle(entity_top_left_from_anchor(anchor_pos, size_px), size_px, RED, buffer, true)
+}
+
+draw_debug_cross :: proc(pos: V2i, color: u32, buffer: OffScreenBuffer) {
+	draw_rectangle(pos - V2i{6, 1}, V2i{13, 3}, color, buffer)
+	draw_rectangle(pos - V2i{1, 6}, V2i{3, 13}, color, buffer)
+}
+
 // 绘制矩形（填充或边框）
 draw_rectangle :: proc(
-	x: i32,
-	y: i32,
-	width: i32,
-	height: i32,
+	top_left_pos: V2i, //pixel x-y-pos
+	size_px: V2i,
 	color: u32,
 	buffer: OffScreenBuffer,
 	outline: bool = false,
 ) {
 	// 输入矩形
 	rect := Rectangle {
-		min = V2i{x, y},
-		max = V2i{x + width, y + height},
+		min = top_left_pos,
+		max = top_left_pos + size_px,
 	}
 
 	// buffer 边界
@@ -152,21 +160,21 @@ draw_tile_map :: proc(grid_pos: V2i, tile_idx: V2i, img: ^image.Image, buffer: O
 //
 // 概念模型：
 //   1. sprite 放在 buffer 的 pos 位置，形成 sprite_rect
-//   2. sprite_rect 和 buffer_rect 求交集，得到 draw_rect（buffer 坐标系）
+//   2. sprite_rect 和 buffer_rect 求交集，得到 draw_rect
 //   3. 遍历 draw_rect 的每个点，反推 source 坐标，复制像素
 //
 draw_image_corp :: proc(
-	pos: V2i,
+	left_top_buffer_pos: V2i,
 	img: ^image.Image,
 	buffer: OffScreenBuffer,
 	sprite_size: V2i = V2i{},
 	atlas_offset: V2i = V2i{},
 	reverse: bool = false,
 ) {
-	// sprite 在 buffer 上占据的矩形（buffer 坐标系）
+	// sprite 在 buffer 上占据的矩形
 	sprite_rect := Rectangle {
-		min = pos,
-		max = pos + sprite_size,
+		min = left_top_buffer_pos,
+		max = left_top_buffer_pos + sprite_size,
 	}
 
 	// buffer 边界
@@ -187,8 +195,8 @@ draw_image_corp :: proc(
 	// 遍历 draw_rect 的每一行
 	for ty in draw_rect.min.y ..< draw_rect.max.y {
 		// 反推 source 坐标
-		sy := ty - pos.y + atlas_offset.y
-		sx := draw_rect.min.x - pos.x + atlas_offset.x
+		sy := ty - left_top_buffer_pos.y + atlas_offset.y
+		sx := draw_rect.min.x - left_top_buffer_pos.x + atlas_offset.x
 
 		// 这一行的宽度
 		width := draw_rect.max.x - draw_rect.min.x
@@ -216,27 +224,45 @@ intersect_rect :: proc(a, b: Rectangle) -> (Rectangle, bool) {
 	return result, ok
 }
 
+// 以屏幕为原点的相对坐标 转换为 buffer的相对像素坐标（左上角为原点，xy倒置）
+rel_pos_to_buffer_pos :: proc(rel: V3, buffer: OffScreenBuffer) -> V2i {
+	return V2i{buffer.width / 2 + i32(rel.x * SCALE), buffer.height / 2 - i32(rel.y * SCALE)}
+}
+
+entity_top_left_from_anchor :: proc(anchor_pos: V2i, size_px: V2i) -> V2i {
+	// 对象左上角 = 屏幕中心 + 相对偏移 - 重心到左上角调整(半宽, 全高)
+	return anchor_pos - V2i{size_px.x / 2, size_px.y}
+}
+
+draw_entity_size :: proc(rel_position: V3, size: V2, buffer: OffScreenBuffer) {
+	// 把相对位置（单位m）转换成对应屏幕上的位置（pixel）
+	rel_pos_px := meter_to_pixel(rel_position)
+	rel_px := V2i{i32(rel_pos_px.x), -i32(rel_pos_px.y)} // 上为负??
+
+	// 玩家帧尺寸 or 一般实体尺寸（米→像素）
+	size_px := V2i{i32(meter_to_pixel(size.x)), i32(meter_to_pixel(size.y))}
+
+	// 对象左上角 = 屏幕中心 + 相对偏移 - 重心到左上角调整(半宽, 全高)
+	screen_center := V2i{buffer.width / 2, buffer.height / 2}
+	top_left := screen_center + rel_px - V2i{size_px.x / 2, size_px.y}
+
+}
+
 draw_entity_image :: proc(
-	pos: V2i,
+	top_left_pos: V2i,
 	image: ^image.Image,
 	entity: ^LowEntity,
 	buffer: OffScreenBuffer,
 ) {
-	draw_image_simple(pos, image, buffer)
-	draw_rectangle(
-		pos.x,
-		pos.y,
-		i32(meter_to_pixel(entity^.size.x)),
-		i32(meter_to_pixel(entity^.size.y)),
-		RED,
-		buffer,
-		outline = true,
-	)
+	size_px := V2i{i32(meter_to_pixel(entity^.size.x)), i32(meter_to_pixel(entity^.size.y))}
+
+	draw_image_simple(top_left_pos, image, buffer)
+	draw_rectangle(top_left_pos, size_px, RED, buffer, outline = true)
 }
 
 // 假设动画图片水平排列，一共有frames帧
 draw_entity_animation :: proc(
-	pos: V2i,
+	anchor_buffer_pos: V2i,
 	animation: Animation,
 	entity: ^LowEntity,
 	buffer: OffScreenBuffer,
@@ -258,23 +284,22 @@ draw_entity_animation :: proc(
 	frame := clips[entity.anim_frame_idx]
 	sprite_size := V2i{frame.frame.w, frame.frame.h}
 	atlas_offset := V2i{frame.frame.x, frame.frame.y}
-	// 调整位置：锚点偏移 - trimmed 偏移
+	source_anchor := animation.anchorOffset
+	source_frame_to_sprite := V2i{frame.spriteSourceSize.x, frame.spriteSourceSize.y}
+
+	// 把原始 source frame 里的固定锚点对齐到实体 anchor，再画 trimmed sprite。
 	draw_pos :=
-		pos + animation.anchorOffset - V2i{frame.spriteSourceSize.x, frame.spriteSourceSize.y}
+		anchor_buffer_pos +
+		source_frame_to_sprite -
+		source_anchor
 
 	reverse := entity.direction == Direction.Backward
 	draw_image_corp(draw_pos, image, buffer, sprite_size, atlas_offset, reverse)
 
-	// 绘制entity体积框
-	draw_rectangle(
-		draw_pos.x,
-		draw_pos.y,
-		i32(meter_to_pixel(entity.size.x)),
-		i32(meter_to_pixel(entity.size.y)),
-		RED,
-		buffer,
-		outline = true,
-	)
+	draw_debug_cross(draw_pos, BLACK, buffer)
+
+	// Debug: actual trimmed sprite bounds.
+	draw_rectangle(draw_pos, sprite_size, RED, buffer, outline = true)
 }
 
 @(test)

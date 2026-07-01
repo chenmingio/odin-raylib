@@ -210,7 +210,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		game_state^.unit_animate = animation_from_ase_sprite_sheet(
 			unit_animate,
 			unit_img,
-			V2i{0, 0},
+			V2i{101, 130},
 			"Warrior",
 		)
 
@@ -220,7 +220,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	}
 
 	// 画一个绿布
-	draw_rectangle(0, 0, image_buffer.width, image_buffer.height, GREEN, image_buffer)
+	draw_rectangle(V2i{0, 0}, V2i{image_buffer.width, image_buffer.height}, GREEN, image_buffer)
 
 	// 控制输入
 	move := V3{0, 0, 0}
@@ -278,45 +278,48 @@ update_and_render: UpdateAndRenderProc : proc(
 		}
 	}
 
+	// screen center reference, drawn before entities so debug anchors stay visible.
+	draw_line_x(image_buffer.height / 2, image_buffer)
+	draw_line_y(image_buffer.width / 2, image_buffer)
+
 	entities := active_entities(game_state)
 	for i in 0 ..< len(entities) {
 		entity := &entities[i]
+		// 下面计算把worldPos（米）转换为buffer使用的坐标（pixel）
+		anchor_buffer_pos := rel_pos_to_buffer_pos(
+			relative_pos(entity.pos, game_state^.camera_pos),
+			image_buffer,
+		)
 
-		// 屏幕中心与相对像素偏移
-		screen_center := V2i{image_buffer.width / 2, image_buffer.height / 2}
-		rel_pos_px := meter_to_pixel(relative_pos(entity.pos, game_state^.camera_pos)) // V3
-		rel_px := V2i{i32(rel_pos_px.x), -i32(rel_pos_px.y)} // 上为负
+		// 玩家帧尺寸 or 一般实体尺寸（米→像素）
+		entity_size_px := V2i {
+			i32(meter_to_pixel(entity.size.x)),
+			i32(meter_to_pixel(entity.size.y)),
+		}
+		body_top_left := entity_top_left_from_anchor(anchor_buffer_pos, entity_size_px)
 
 		// 是否玩家
 		is_player := entity.type == EntityType.Player
 
-		// 玩家帧尺寸 or 一般实体尺寸（米→像素）
-		size_px := V2i{i32(meter_to_pixel(entity.size.x)), i32(meter_to_pixel(entity.size.y))}
-
-		// 对象左上角 = 屏幕中心 + 相对偏移 - 重心到左上角调整(半宽, 全高)
-		top_left := screen_center + rel_px - V2i{size_px.x / 2, size_px.y}
-
 		switch entity.type {
 		case .Player:
 			draw_entity_animation(
-				top_left,
+				anchor_buffer_pos,
 				game_state.unit_animate,
 				entity,
 				image_buffer,
 				time_span,
 			)
+			draw_rectangle(body_top_left, entity_size_px, BLUE, image_buffer, outline = true)
+			draw_debug_cross(anchor_buffer_pos, WHITE, image_buffer)
 		case .Wall:
-			draw_entity_image(top_left, game_state^.rock_images[0], entity, image_buffer)
+			draw_entity_image(body_top_left, game_state^.rock_images[0], entity, image_buffer)
 		case .Tree:
 		case .Enemy:
 		case .Null:
 			break
 		}
 	}
-
-	// render
-	draw_line_x(image_buffer.height / 2, image_buffer)
-	draw_line_y(image_buffer.width / 2, image_buffer)
 
 
 }
