@@ -451,9 +451,11 @@ pivot_in_source := V2i{101, 130}
 所以画到 buffer 时：
 
 ```odin
+trimmed_offset_in_source := V2i{frame.spriteSourceSize.x, frame.spriteSourceSize.y}
+
 sprite_dest_top_left =
     entity_pivot_buffer_pos +
-    V2i{frame.spriteSourceSize.x, frame.spriteSourceSize.y} -
+    trimmed_offset_in_source -
     pivot_in_source
 ```
 
@@ -467,6 +469,21 @@ spriteSourceSize.xy 是当前 trimmed sprite 相对原始 frame 的左上角
 让 pivot_in_source 对齐到游戏里的 entity_pivot_buffer_pos，
 同时保留当前帧在原始 source frame 里的位移。
 ```
+
+如果角色反向绘制，像素会在 `draw_image_corp` / `blend` 阶段水平翻转。
+这时不能直接复用正向的 `pivot_in_source.x`，否则视觉上的 pivot 会落在翻转前
+的位置。需要在完整的原始 `sourceSize` 坐标系里镜像 pivot：
+
+```odin
+pivot_in_source := animation.pivot_in_source
+if reverse {
+    pivot_in_source.x = i32(anim_frame.sourceSize.w) - animation.pivot_in_source.x
+}
+```
+
+注意这里用的是 `sourceSize.w`，不是 `spriteSourceSize.w` 或 `frame.w`。
+原因是 `pivot_in_source` 定义在 trim 之前的原始 source frame 里；反向时也要
+在同一个完整坐标系里做镜像，不能用 trimmed sprite 的宽度来算。
 
 所以这几个字段的职责可以总结成：
 
@@ -845,6 +862,10 @@ spriteSourceSize.xy
 ```odin
 pivot_in_source := animation.pivot_in_source
 trimmed_offset_in_source := V2i{anim_frame.spriteSourceSize.x, anim_frame.spriteSourceSize.y}
+
+if reverse {
+    pivot_in_source.x = i32(anim_frame.sourceSize.w) - animation.pivot_in_source.x
+}
 
 sprite_dest_top_left =
     entity_pivot_buffer_pos +
