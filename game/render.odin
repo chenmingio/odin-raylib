@@ -10,9 +10,6 @@ import "core:testing"
 // RGBA
 RED := intrinsics.byte_swap(u32(0xFF0000FF))
 GREEN := intrinsics.byte_swap(u32(0x00FF00FF))
-BLUE := intrinsics.byte_swap(u32(0x0000FFFF))
-BLACK := intrinsics.byte_swap(u32(0x000000FF))
-WHITE := intrinsics.byte_swap(u32(0xFFFFFFFF))
 
 
 OffScreenBuffer :: struct {
@@ -24,11 +21,6 @@ OffScreenBuffer :: struct {
 // use buffer pixel pos
 draw_entity_body_rectangle :: proc(anchor_pos: V2i, size_px: V2i, buffer: OffScreenBuffer) {
 	draw_rectangle(entity_top_left_from_anchor(anchor_pos, size_px), size_px, RED, buffer, true)
-}
-
-draw_debug_cross :: proc(pos: V2i, color: u32, buffer: OffScreenBuffer) {
-	draw_rectangle(pos - V2i{6, 1}, V2i{13, 3}, color, buffer)
-	draw_rectangle(pos - V2i{1, 6}, V2i{3, 13}, color, buffer)
 }
 
 // 绘制矩形（填充或边框）
@@ -295,11 +287,6 @@ draw_entity_animation :: proc(
 
 	reverse := entity.direction == Direction.Backward
 	draw_image_corp(draw_pos, image, buffer, sprite_size, atlas_offset, reverse)
-
-	draw_debug_cross(draw_pos, BLACK, buffer)
-
-	// Debug: actual trimmed sprite bounds.
-	draw_rectangle(draw_pos, sprite_size, RED, buffer, outline = true)
 }
 
 @(test)

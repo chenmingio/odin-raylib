@@ -310,8 +310,7 @@ update_and_render: UpdateAndRenderProc : proc(
 				image_buffer,
 				time_span,
 			)
-			draw_rectangle(body_top_left, entity_size_px, BLUE, image_buffer, outline = true)
-			draw_debug_cross(anchor_buffer_pos, WHITE, image_buffer)
+			draw_entity_body_rectangle(anchor_buffer_pos, entity_size_px, image_buffer)
 		case .Wall:
 			draw_entity_image(body_top_left, game_state^.rock_images[0], entity, image_buffer)
 		case .Tree:
