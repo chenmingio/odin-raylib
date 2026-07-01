@@ -13,6 +13,54 @@ JSON 文件是什么意思，以及代码如何根据这些数据，从 spritesh
 之前容易混乱，就是因为 `frame`、`spriteSourceSize`、实体 anchor、
 buffer 坐标都混在了一起。
 
+## 术语表
+
+### Aseprite / TexturePacker JSON 术语
+
+`frame` / `spriteSourceSize` / `sourceSize` 这三个字段基本沿用
+TexturePacker/Aseprite JSON 生态：`frame` 是 texture/atlas 内的位置
+和尺寸，`spriteSourceSize` 是裁剪后帧在原图里的位置和尺寸，
+`sourceSize` 是原始图尺寸。
+
+| 术语 | 含义 |
+|---|---|
+| `sprite` | 2D 游戏里被绘制进场景的位图对象。 |
+| `sprite sheet` | 把同一个 sprite 的多个动画帧放在一张大图里。 |
+| `texture atlas` / `atlas` | 把多个 sprite、图片或动画帧打包进一张 texture；渲染时从里面取子矩形。 |
+| `frame` | atlas 里的采样矩形：当前帧在 texture/atlas 内的位置和尺寸。 |
+| `sourceSize` | trim 之前的原始帧画布尺寸。 |
+| `spriteSourceSize` | trim 后的可见 sprite 在原始帧画布里的位置和尺寸。 |
+| `trimmed` | 是否裁掉了透明边缘。 |
+| `rotated` | 打包进 atlas 时，这个 frame 是否被旋转。当前代码暂不支持 rotated frame。 |
+| `duration` | 当前动画帧的播放时长，单位是毫秒。 |
+| `frame tag` | Aseprite 里给一段帧范围命名的标签；代码里会转换成动画 clip。 |
+
+### 项目代码术语建议
+
+| 当前名字 | 建议名字 | 含义 |
+|---|---|---|
+| `anchor_buffer_pos` | `entity_pivot_buffer_pos` 或 `dest_pivot_pos` | 实体/精灵的目标 pivot 在 buffer 上的位置。 |
+| `anchorOffset` | `pivot_offset` 或 `pivot_in_source` | pivot 在未裁剪原始帧里的像素坐标。 |
+| `clips` | `clip_frames` | 当前动画片段的帧列表。 |
+| `frame` | `ase_frame` 或 `anim_frame` | Aseprite JSON 的单帧数据。 |
+| `sprite_size` | `source_rect_size` 或 `trimmed_sprite_size` | atlas 中实际被绘制的裁剪后 sprite 尺寸。 |
+| `atlas_offset` | `source_rect_pos` 或 `atlas_rect_pos` | atlas 内采样矩形左上角。 |
+| `source_frame_to_sprite` | `trimmed_offset_in_source` | 裁剪后 sprite 在原始未裁剪帧里的偏移。 |
+| `buffer_draw_pos` | `sprite_dest_top_left` | 最终绘制到 buffer 的左上角。 |
+
+### 参考资料
+
+- Wikipedia: Sprite 是 2D bitmap 被集成进更大场景的图形对象。
+  https://en.wikipedia.org/wiki/Sprite_(computer_graphics)
+- Aseprite 文档：使用 `sprite sheet`、`frames`、`tags`、`texture atlas`
+  等术语描述导入导出。
+  https://www.aseprite.org/docs/sprite-sheet/
+- TexturePacker/Felgo 文档：`frame`、`spriteSourceSize`、`sourceSize`
+  的含义和 Aseprite JSON 基本一致。
+  https://felgo.com/doc/howto-texture-packer/
+- Unity 2D 文档：`pivot` 是 sprite 的坐标原点/主要锚点。
+  https://docs.unity3d.com/560/Documentation/Manual/SpriteEditor.html
+
 
 ## `Warrior.json` 里的字段
 
