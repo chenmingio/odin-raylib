@@ -187,7 +187,8 @@ main :: proc() {
 		time_span := rl.GetFrameTime()
 
 		// 更新音频（传入实际帧时间）
-		platform.update_audio(is_paused, time_span)
+		// platform.update_audio(is_paused, time_span)
+
 		// update and render
 		if !is_paused {
 			game_code.game_update_and_render(&game_memory, game_input, game_off_screen, time_span)

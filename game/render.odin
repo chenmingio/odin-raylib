@@ -19,8 +19,18 @@ OffScreenBuffer :: struct {
 }
 
 // use buffer pixel pos
-draw_entity_body_rectangle :: proc(entity_pivot_buffer_pos: V2i, size_px: V2i, buffer: OffScreenBuffer) {
-	draw_rectangle(entity_top_left_from_pivot(entity_pivot_buffer_pos, size_px), size_px, RED, buffer, true)
+draw_entity_body_rectangle :: proc(
+	entity_pivot_buffer_pos: V2i,
+	size_px: V2i,
+	buffer: OffScreenBuffer,
+) {
+	draw_rectangle(
+		entity_top_left_from_pivot(entity_pivot_buffer_pos, size_px),
+		size_px,
+		RED,
+		buffer,
+		true,
+	)
 }
 
 // 绘制矩形（填充或边框）
@@ -278,12 +288,24 @@ draw_entity_animation :: proc(
 	source_rect_size := V2i{anim_frame.frame.w, anim_frame.frame.h}
 	source_rect_pos := V2i{anim_frame.frame.x, anim_frame.frame.y}
 	pivot_in_source := animation.pivot_in_source
+	if reverse {pivot_in_source.x = anim_frame.spriteSourceSize.w - animation.pivot_in_source.x}
 	trimmed_offset_in_source := V2i{anim_frame.spriteSourceSize.x, anim_frame.spriteSourceSize.y}
 
 	// 把原始 source frame 里的固定 pivot 对齐到实体 pivot，再画 trimmed sprite。
+	// entity_pivot_buffer_pos 基础位置，从哪里开始画，此时sprite的左上角在目标点
+	// trimmed_offset_in_source 从trimmed sprite还原为source frame的左上角
+	// pivot_in_source 从source frame左上角到固定pivot点（约定为画面上的人物重心）
+
 	sprite_dest_top_left := entity_pivot_buffer_pos + trimmed_offset_in_source - pivot_in_source
 
-	draw_image_corp(sprite_dest_top_left, image, buffer, source_rect_size, source_rect_pos, reverse)
+	draw_image_corp(
+		sprite_dest_top_left,
+		image,
+		buffer,
+		source_rect_size,
+		source_rect_pos,
+		reverse,
+	)
 }
 
 @(test)
