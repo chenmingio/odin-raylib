@@ -351,11 +351,11 @@ sourceSize
 被击飞、攻击时身体在原始帧里移动，代码会把它重新拉回 anchor，动画里的位移
 就丢了。
 
-更合理的做法是：在原始 `sourceSize` 坐标系里选一个固定点，比如 Warrior
-素材里估算脚底中心是：
+更合理的做法是：在原始 `sourceSize` 坐标系里选一个固定点。Warrior 的 Idle
+帧底部中心大约是 `V2i{101, 137}`，当前代码在视觉上微调为：
 
 ```odin
-source_anchor := V2i{101, 137}
+source_anchor := V2i{101, 130}
 ```
 
 图解：
@@ -394,7 +394,7 @@ draw_pos =
 
 ```text
 anchor_buffer_pos 是游戏世界里实体的位置落到屏幕上的点
-source_anchor 是素材原始 frame 里的固定角色锚点
+source_anchor 是素材原始 frame 里的固定角色锚点，当前 Warrior 使用 V2i{101, 130}
 spriteSourceSize.xy 是当前 trimmed sprite 相对原始 frame 的左上角
 
 让 source_anchor 对齐到游戏里的 anchor_buffer_pos，
@@ -799,87 +799,24 @@ draw_pos 怎么算
 ```
 
 
-## 当前调试标记
+## 当前最终动画放置模型
 
-当前 debug overlay 的含义：
+当前采用 **source frame 固定锚点模型**。
 
-```text
-白色十字 = anchor_buffer_pos
-蓝色框   = body / collision box
-黑色十字 = draw_pos，也就是 sprite 画到 buffer 的左上角
-红色框   = 实际 trimmed sprite 在 buffer 上的方块
-```
-
-如果看到：
+核心原则：
 
 ```text
-白色十字在屏幕中心
-蓝色框正确包住实体逻辑 body
-红色框里是完整且正确的动画
-黑色十字在红框左上角
-红框整体相对蓝框/白十字偏了
+entity anchor
+= 游戏世界里的实体锚点，落到屏幕上以后是 anchor_buffer_pos
+
+source_anchor
+= 原始 source frame 坐标系里的固定角色锚点
+
+spriteSourceSize.xy
+= 当前 trimmed sprite 左上角在原始 source frame 里的位置
 ```
 
-那么可以判断：
-
-```text
-世界坐标 -> buffer 坐标是对的
-body_top_left 是对的
-spritesheet 裁图是对的
-draw_image_corp 是对的
-
-剩下的问题只是：
-sprite 应该相对 entity anchor 放在哪里
-```
-
-
-## 两种动画放置模型
-
-### 模型 A：以 body top-left 为基准
-
-旧代码接近这个模型：
-
-```odin
-draw_pos =
-    body_top_left +
-    animation.anchorOffset -
-    V2i{frame.spriteSourceSize.x, frame.spriteSourceSize.y}
-```
-
-含义：
-
-```text
-先找到实体 body 的左上角，
-再根据 spriteSourceSize 把 trimmed sprite 挪回原始 frame 的位置。
-```
-
-图解：
-
-```text
-body_top_left
-    x
-    |
-    |  - spriteSourceSize.y
-    v
-draw_pos +-------------------+
-         | trimmed sprite    |
-         +-------------------+
-```
-
-这个模型的问题是：
-
-```text
-body_top_left 是碰撞/逻辑盒子的概念，
-spriteSourceSize 是 Aseprite 原始帧里的概念。
-```
-
-两者不一定天然对齐。除非 `animation.anchorOffset` 被调过，否则人物可能会
-贴着 body 左上角附近出现。
-
-
-### 模型 B：以 source frame 固定锚点为基准
-
-更清晰的模型是：
+代码里的公式是：
 
 ```odin
 source_anchor := animation.anchorOffset
@@ -918,7 +855,7 @@ draw_pos =
 +--------------------------------+
 
 trimmed sprite 左上角 = spriteSourceSize.xy
-source_anchor = 美术/代码约定的固定角色锚点，比如 V2i{101, 137}
+source_anchor = 美术/代码约定的固定角色锚点，当前 Warrior 使用 V2i{101, 130}
 ```
 
 画到 buffer 时：
@@ -944,40 +881,36 @@ spriteSourceSize 负责 trim 还原
 frame 负责 atlas 裁图
 ```
 
+这个模型的好处是：如果某一帧里角色真的跳起、后仰、攻击前探，这个位移会体
+现在 `spriteSourceSize.x/y` 里。代码不会每帧重新用 trimmed sprite 的红框底
+部去对齐 anchor，所以不会把动画里的真实位移抹掉。
 
-## 当前问题怎么判断
 
-如果 debug 结果是：
+## 排错时怎么看
 
-```text
-白色十字在中央
-蓝框正确
-红框中人物动画正确
-红框位置不对
-```
+如果之后动画位置又不对，先分清是哪一层错：
 
-那就不要再改这些地方：
+1. 人物形状不完整、裁错帧：
+   检查 `frame`、`sprite_size`、`atlas_offset`、`draw_image_corp`。
 
-```text
-relative_pos
-rel_pos_to_buffer_pos
-entity_top_left_from_anchor
-frame / atlas_offset
-draw_image_corp
-```
+2. 人物形状正确，但整体位置偏：
+   检查 `anchor_buffer_pos`、`source_anchor`、`spriteSourceSize.xy` 到 `draw_pos`
+   的公式。
 
-应该改的是：
+3. body box 正确，动画整体偏：
+   世界坐标和 body 计算大概率没问题，重点看 source anchor 是否需要调整。
 
-```text
-draw_entity_animation 里 draw_pos 的计算公式
-```
+4. 某些动作帧突然跳动：
+   先确认这是美术帧在原始 source frame 里的真实位移，还是 JSON 里的
+   `spriteSourceSize.x/y` 不连续。
 
-尤其是要决定：
+当前这条链路应该保持：
 
 ```text
-动画到底以 body_top_left 为基准？
-还是以 anchor_buffer_pos 为基准？
+WorldPosition
+-> relative_pos
+-> rel_pos_to_buffer_pos
+-> anchor_buffer_pos
+-> anchor_buffer_pos + spriteSourceSize.xy - source_anchor
+-> draw_pos
 ```
-
-目前从调试结果看，`anchor_buffer_pos` 和 body box 都是正确的，所以动画更适合
-改成“以 entity anchor 为基准”的模型。
