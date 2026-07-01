@@ -19,8 +19,8 @@ OffScreenBuffer :: struct {
 }
 
 // use buffer pixel pos
-draw_entity_body_rectangle :: proc(anchor_pos: V2i, size_px: V2i, buffer: OffScreenBuffer) {
-	draw_rectangle(entity_top_left_from_anchor(anchor_pos, size_px), size_px, RED, buffer, true)
+draw_entity_body_rectangle :: proc(entity_pivot_buffer_pos: V2i, size_px: V2i, buffer: OffScreenBuffer) {
+	draw_rectangle(entity_top_left_from_pivot(entity_pivot_buffer_pos, size_px), size_px, RED, buffer, true)
 }
 
 // 绘制矩形（填充或边框）
@@ -123,15 +123,15 @@ draw_image_simple :: proc(
 	reverse: bool = false,
 ) {
 	full_size := V2i{i32(img^.width), i32(img^.height)}
-	draw_image_corp(pos, img, buffer, sprite_size = full_size, reverse = reverse)
+	draw_image_corp(pos, img, buffer, source_rect_size = full_size, reverse = reverse)
 }
 
 draw_tile_map :: proc(grid_pos: V2i, tile_idx: V2i, img: ^image.Image, buffer: OffScreenBuffer) {
 	tiles_per_col :: 6
 	tile_size := i32(img^.height / tiles_per_col)
 
-	// 图集中 tile 的位置
-	atlas_offset := V2i{tile_idx.x * tile_size, tile_idx.y * tile_size}
+	// atlas 中 tile 的位置
+	source_rect_pos := V2i{tile_idx.x * tile_size, tile_idx.y * tile_size}
 
 	// 屏幕上的位置
 	screen_pos := V2i {
@@ -143,8 +143,8 @@ draw_tile_map :: proc(grid_pos: V2i, tile_idx: V2i, img: ^image.Image, buffer: O
 		screen_pos,
 		img,
 		buffer,
-		sprite_size = V2i{tile_size, tile_size},
-		atlas_offset = atlas_offset,
+		source_rect_size = V2i{tile_size, tile_size},
+		source_rect_pos = source_rect_pos,
 	)
 }
 
@@ -159,14 +159,14 @@ draw_image_corp :: proc(
 	left_top_buffer_pos: V2i,
 	img: ^image.Image,
 	buffer: OffScreenBuffer,
-	sprite_size: V2i = V2i{},
-	atlas_offset: V2i = V2i{},
+	source_rect_size: V2i = V2i{},
+	source_rect_pos: V2i = V2i{},
 	reverse: bool = false,
 ) {
 	// sprite 在 buffer 上占据的矩形
 	sprite_rect := Rectangle {
 		min = left_top_buffer_pos,
-		max = left_top_buffer_pos + sprite_size,
+		max = left_top_buffer_pos + source_rect_size,
 	}
 
 	// buffer 边界
@@ -187,8 +187,8 @@ draw_image_corp :: proc(
 	// 遍历 draw_rect 的每一行
 	for ty in draw_rect.min.y ..< draw_rect.max.y {
 		// 反推 source 坐标
-		sy := ty - left_top_buffer_pos.y + atlas_offset.y
-		sx := draw_rect.min.x - left_top_buffer_pos.x + atlas_offset.x
+		sy := ty - left_top_buffer_pos.y + source_rect_pos.y
+		sx := draw_rect.min.x - left_top_buffer_pos.x + source_rect_pos.x
 
 		// 这一行的宽度
 		width := draw_rect.max.x - draw_rect.min.x
@@ -221,9 +221,9 @@ rel_pos_to_buffer_pos :: proc(rel: V3, buffer: OffScreenBuffer) -> V2i {
 	return V2i{buffer.width / 2 + i32(rel.x * SCALE), buffer.height / 2 - i32(rel.y * SCALE)}
 }
 
-entity_top_left_from_anchor :: proc(anchor_pos: V2i, size_px: V2i) -> V2i {
+entity_top_left_from_pivot :: proc(entity_pivot_buffer_pos: V2i, size_px: V2i) -> V2i {
 	// 对象左上角 = 屏幕中心 + 相对偏移 - 重心到左上角调整(半宽, 全高)
-	return anchor_pos - V2i{size_px.x / 2, size_px.y}
+	return entity_pivot_buffer_pos - V2i{size_px.x / 2, size_px.y}
 }
 
 draw_entity_size :: proc(rel_position: V3, size: V2, buffer: OffScreenBuffer) {
@@ -254,7 +254,7 @@ draw_entity_image :: proc(
 
 // 假设动画图片水平排列，一共有frames帧
 draw_entity_animation :: proc(
-	anchor_buffer_pos: V2i,
+	entity_pivot_buffer_pos: V2i,
 	animation: Animation,
 	entity: ^LowEntity,
 	buffer: OffScreenBuffer,
@@ -262,31 +262,28 @@ draw_entity_animation :: proc(
 ) {
 	image := animation.image
 	status := entity.status
+	reverse := entity.direction == Direction.Backward
 
 	// in pixel
-	clips := animation.clips[status].frames
-	assert(len(clips) > 0)
+	clip_frames := animation.clips[status].frames
+	assert(len(clip_frames) > 0)
 
 	entity.anim_time += i32(dt * 1000)
-	for entity.anim_time >= clips[entity.anim_frame_idx].duration {
-		entity.anim_time -= clips[entity.anim_frame_idx].duration
-		entity.anim_frame_idx = (entity.anim_frame_idx + 1) % i32(len(clips))
+	for entity.anim_time >= clip_frames[entity.anim_frame_idx].duration {
+		entity.anim_time -= clip_frames[entity.anim_frame_idx].duration
+		entity.anim_frame_idx = (entity.anim_frame_idx + 1) % i32(len(clip_frames))
 	}
 
-	frame := clips[entity.anim_frame_idx]
-	sprite_size := V2i{frame.frame.w, frame.frame.h}
-	atlas_offset := V2i{frame.frame.x, frame.frame.y}
-	source_anchor := animation.anchorOffset
-	source_frame_to_sprite := V2i{frame.spriteSourceSize.x, frame.spriteSourceSize.y}
+	anim_frame := clip_frames[entity.anim_frame_idx]
+	source_rect_size := V2i{anim_frame.frame.w, anim_frame.frame.h}
+	source_rect_pos := V2i{anim_frame.frame.x, anim_frame.frame.y}
+	pivot_in_source := animation.pivot_in_source
+	trimmed_offset_in_source := V2i{anim_frame.spriteSourceSize.x, anim_frame.spriteSourceSize.y}
 
-	// 把原始 source frame 里的固定锚点对齐到实体 anchor，再画 trimmed sprite。
-	draw_pos :=
-		anchor_buffer_pos +
-		source_frame_to_sprite -
-		source_anchor
+	// 把原始 source frame 里的固定 pivot 对齐到实体 pivot，再画 trimmed sprite。
+	sprite_dest_top_left := entity_pivot_buffer_pos + trimmed_offset_in_source - pivot_in_source
 
-	reverse := entity.direction == Direction.Backward
-	draw_image_corp(draw_pos, image, buffer, sprite_size, atlas_offset, reverse)
+	draw_image_corp(sprite_dest_top_left, image, buffer, source_rect_size, source_rect_pos, reverse)
 }
 
 @(test)

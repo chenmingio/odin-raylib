@@ -286,7 +286,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	for i in 0 ..< len(entities) {
 		entity := &entities[i]
 		// 下面计算把worldPos（米）转换为buffer使用的坐标（pixel）
-		anchor_buffer_pos := rel_pos_to_buffer_pos(
+		entity_pivot_buffer_pos := rel_pos_to_buffer_pos(
 			relative_pos(entity.pos, game_state^.camera_pos),
 			image_buffer,
 		)
@@ -296,7 +296,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			i32(meter_to_pixel(entity.size.x)),
 			i32(meter_to_pixel(entity.size.y)),
 		}
-		body_top_left := entity_top_left_from_anchor(anchor_buffer_pos, entity_size_px)
+		body_top_left := entity_top_left_from_pivot(entity_pivot_buffer_pos, entity_size_px)
 
 		// 是否玩家
 		is_player := entity.type == EntityType.Player
@@ -304,13 +304,13 @@ update_and_render: UpdateAndRenderProc : proc(
 		switch entity.type {
 		case .Player:
 			draw_entity_animation(
-				anchor_buffer_pos,
+				entity_pivot_buffer_pos,
 				game_state.unit_animate,
 				entity,
 				image_buffer,
 				time_span,
 			)
-			draw_entity_body_rectangle(anchor_buffer_pos, entity_size_px, image_buffer)
+			draw_entity_body_rectangle(entity_pivot_buffer_pos, entity_size_px, image_buffer)
 		case .Wall:
 			draw_entity_image(body_top_left, game_state^.rock_images[0], entity, image_buffer)
 		case .Tree:

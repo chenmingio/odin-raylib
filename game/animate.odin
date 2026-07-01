@@ -45,9 +45,9 @@ AnimClip :: struct {
 }
 
 Animation :: struct {
-	clips:        [EntityStatus]AnimClip, // 用枚举当下标的定长数组
-	image:        ^image.Image,
-	anchorOffset: V2i,
+	clips:           [EntityStatus]AnimClip, // 用枚举当下标的定长数组
+	image:           ^image.Image,
+	pivot_in_source: V2i,
 }
 
 // 提取frames的key（例如 Warrior #Attach 1 2.aseprite）里的index 2
@@ -69,12 +69,12 @@ get_frame_index_from_key :: proc(key: string) -> (int, bool) {
 animation_from_ase_sprite_sheet :: proc(
 	sheet: AseSpriteSheet,
 	image: ^image.Image,
-	anchor_offset: V2i,
+	pivot_in_source: V2i,
 	prefix: string,
 ) -> Animation {
 	result: Animation
 	result.image = image
-	result.anchorOffset = anchor_offset
+	result.pivot_in_source = pivot_in_source
 
 	for tag in sheet.meta.frameTags {
 		status := name_to_entity_status(tag.name)
@@ -82,10 +82,10 @@ animation_from_ase_sprite_sheet :: proc(
 
 		for i in 0 ..= (tag.to - tag.from) {
 			key := fmt.tprintf("%s #%s %d.aseprite", prefix, tag.name, i)
-			frame, ok := sheet.frames[key]
+			anim_frame, ok := sheet.frames[key]
 			assert(ok, "frame not found")
 
-			n, err := append(&clip.frames, frame)
+			n, err := append(&clip.frames, anim_frame)
 			assert(err == nil, "append failed")
 		}
 
