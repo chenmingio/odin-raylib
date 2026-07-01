@@ -1,16 +1,16 @@
 # Draw Image / Animation 设计笔记
 
 这份文档解释 `resources/Units/Warrior.json` 这类 Aseprite 导出的
-JSON 文件是什么意思，以及代码如何根据这些数据，从 spritesheet 里找到目标
+JSON 文件是什么意思，以及代码如何根据这些数据，从 texture atlas 里找到目标
 方块，再把它画到 backbuffer 上。
 
 这里有三件事必须分开看：
 
-1. **从 spritesheet 里取哪一块图？**
+1. **从 texture atlas 里取哪一块图？**
 2. **把这块图画到 buffer 的哪里？**
 3. **如果 Aseprite trim 掉了透明边缘，怎么让动画帧不乱跳？**
 
-之前容易混乱，就是因为 `frame`、`spriteSourceSize`、实体 anchor、
+之前容易混乱，就是因为 `frame`、`spriteSourceSize`、实体 pivot、
 buffer 坐标都混在了一起。
 
 ## 术语表
@@ -37,16 +37,120 @@ TexturePacker/Aseprite JSON 生态：`frame` 是 texture/atlas 内的位置
 
 ### 项目代码术语建议
 
+下面是当前代码名到统一术语的映射。后文用“建议名字”描述模型；旧名字只在
+这张对照表里保留，方便后续重命名代码时逐项对应。
+
 | 当前名字 | 建议名字 | 含义 |
 |---|---|---|
-| `anchor_buffer_pos` | `entity_pivot_buffer_pos` 或 `dest_pivot_pos` | 实体/精灵的目标 pivot 在 buffer 上的位置。 |
-| `anchorOffset` | `pivot_offset` 或 `pivot_in_source` | pivot 在未裁剪原始帧里的像素坐标。 |
+| `anchor_buffer_pos` | `entity_pivot_buffer_pos` | 实体/精灵的目标 pivot 在 buffer 上的位置。 |
+| `anchorOffset` | `pivot_in_source` | pivot 在未裁剪原始帧里的像素坐标。 |
 | `clips` | `clip_frames` | 当前动画片段的帧列表。 |
-| `frame` | `ase_frame` 或 `anim_frame` | Aseprite JSON 的单帧数据。 |
-| `sprite_size` | `source_rect_size` 或 `trimmed_sprite_size` | atlas 中实际被绘制的裁剪后 sprite 尺寸。 |
-| `atlas_offset` | `source_rect_pos` 或 `atlas_rect_pos` | atlas 内采样矩形左上角。 |
+| `frame` | `anim_frame` | Aseprite JSON 的单帧数据。 |
+| `sprite_size` | `source_rect_size` | atlas 中实际被绘制的裁剪后 sprite 尺寸。 |
+| `atlas_offset` | `source_rect_pos` | atlas 内采样矩形左上角。 |
 | `source_frame_to_sprite` | `trimmed_offset_in_source` | 裁剪后 sprite 在原始未裁剪帧里的偏移。 |
 | `buffer_draw_pos` | `sprite_dest_top_left` | 最终绘制到 buffer 的左上角。 |
+
+### 核心图示
+
+`frame` 描述 atlas 里的采样矩形，也就是从 `Warrior.png` 这张大图里读哪一块。
+
+```text
+Warrior.png / texture atlas
+
+(0,0)
++--------------------------------------------------+
+| frame.x = 0, frame.y = 0                         |
+| v                                                |
+| +-------------------+                            |
+| | 当前帧 trimmed 图 |  frame.w = 79              |
+| |                   |  frame.h = 89              |
+| +-------------------+                            |
+|                                                  |
++--------------------------------------------------+
+```
+
+`sourceSize` 描述 trim 之前的原始帧画布。
+
+```text
+原始 Aseprite frame，trim 之前
+
+(0,0)
++--------------------------------+
+|                                |
+|                                |
+|        +----------------+      |
+|        |   可见 sprite  |      |
+|        +----------------+      |
+|                                |
+|                                |
++--------------------------------+
+                         192x192
+```
+
+`spriteSourceSize` 描述 trim 后的可见 sprite 在原始帧画布里的位置和尺寸。
+
+```text
+原始 192x192 frame
+
+(0,0)
++--------------------------------+
+|                                |
+|                                |
+|      spriteSourceSize.y = 48   |
+|              v                 |
+|      +-------------------+     |
+|      | 当前帧 trimmed 图 |     |
+|      | 79 x 89           |     |
+|      +-------------------+     |
+|      ^                         |
+|      spriteSourceSize.x = 62   |
+|                                |
++--------------------------------+
+```
+
+`pivot_in_source` 是原始帧坐标系里的固定角色 pivot；
+`entity_pivot_buffer_pos` 是这个 pivot 在 buffer 上要对齐到的位置。
+
+```text
+原始 source frame，固定坐标系
+
+(0,0)
++--------------------------------+
+|                                |
+|      +-------------------+     |
+|      |                   |     |
+|      | visible sprite    |     |
+|      |                   |     |
+|      +-------------------+     |
+|             x                  |
+|             ^                  |
+|             pivot_in_source    |
+|                                |
++--------------------------------+
+```
+
+最终绘制位置：
+
+```text
+sprite_dest_top_left =
+    entity_pivot_buffer_pos +
+    trimmed_offset_in_source -
+    pivot_in_source
+```
+
+动画渲染时同时涉及三个不同的矩形：
+
+```text
+1. source frame
+   Aseprite trim 前的原始帧画布，由 sourceSize 描述。
+
+2. source rect
+   texture atlas 里的采样矩形，由 frame 描述。
+
+3. destination rect
+   buffer 上最终写入的矩形，由 sprite_dest_top_left + source_rect_size 描述。
+```
 
 ### 参考资料
 
@@ -92,40 +196,26 @@ TexturePacker/Aseprite JSON 生态：`frame` 是 texture/atlas 内的位置
 
 ### `frame`
 
-`frame` 描述的是：**当前帧在最终 spritesheet 图片里的位置**。
+`frame` 描述的是：**当前帧在最终 texture atlas 图片里的位置**。
 
-也就是从 `Warrior.png` 这张大图里裁哪一块。
-
-```text
-Warrior.png / spritesheet
-
-(0,0)
-+--------------------------------------------------+
-| frame.x = 0, frame.y = 0                         |
-| v                                                |
-| +-------------------+                            |
-| | 当前帧 trimmed 图 |  frame.w = 79              |
-| |                   |  frame.h = 89              |
-| +-------------------+                            |
-|                                                  |
-+--------------------------------------------------+
-```
+也就是从 `Warrior.png` 这张大图里裁哪一块。图示见术语表里的
+`frame` 核心图示。
 
 所以：
 
 ```text
-frame.x / frame.y = 在图集里的左上角
-frame.w / frame.h = 图集里这一帧的宽高
+frame.x / frame.y = 在 atlas 里的左上角
+frame.w / frame.h = atlas 里这一帧的宽高
 ```
 
 在代码里对应：
 
 ```odin
-sprite_size := V2i{frame.frame.w, frame.frame.h}
-atlas_offset := V2i{frame.frame.x, frame.frame.y}
+source_rect_size := V2i{anim_frame.frame.w, anim_frame.frame.h}
+source_rect_pos := V2i{anim_frame.frame.x, anim_frame.frame.y}
 ```
 
-`frame` 只管“从图集里读哪里”，不管“画到屏幕哪里”。
+`frame` 只管“从 atlas 里读哪里”，不管“画到屏幕哪里”。
 
 
 ### `sourceSize`
@@ -142,22 +232,7 @@ atlas_offset := V2i{frame.frame.x, frame.frame.y}
 ```
 
 也就是原始每一帧是 `192x192` 的透明画布。人物真正可见的部分并没有这么大。
-
-```text
-原始 Aseprite frame，trim 之前
-
-(0,0)
-+--------------------------------+
-|                                |
-|                                |
-|        +----------------+      |
-|        |   可见人物     |      |
-|        +----------------+      |
-|                                |
-|                                |
-+--------------------------------+
-                         192x192
-```
+图示见术语表里的 `sourceSize` 核心图示。
 
 注意：`sourceSize.h = 192` 不等于“人物脚底在 y=192”。  
 它只是原始透明画布的高度。
@@ -165,7 +240,7 @@ atlas_offset := V2i{frame.frame.x, frame.frame.y}
 
 ### `spriteSourceSize`
 
-`spriteSourceSize` 是：**trim 后的小图，在原始 `sourceSize` 画布里的位置**。
+`spriteSourceSize` 是：**trim 后的 visible sprite，在原始 `sourceSize` 画布里的位置**。
 
 例子：
 
@@ -178,27 +253,7 @@ atlas_offset := V2i{frame.frame.x, frame.frame.y}
 }
 ```
 
-意思是：
-
-```text
-原始 192x192 frame
-
-(0,0)
-+--------------------------------+
-|                                |
-|                                |
-|      spriteSourceSize.y = 48   |
-|              v                 |
-|      +-------------------+     |
-|      | 当前帧 trimmed 图 |     |
-|      | 79 x 89           |     |
-|      +-------------------+     |
-|      ^                         |
-|      spriteSourceSize.x = 62   |
-|                                |
-+--------------------------------+
-                         192x192
-```
+图示见术语表里的 `spriteSourceSize` 核心图示。
 
 所以：
 
@@ -219,7 +274,7 @@ spriteSourceSize.h == frame.h
 
 `trimmed: true` 表示 Aseprite 把透明边缘裁掉了。
 
-裁掉以后 spritesheet 更小，但是动画定位会多一个问题：
+裁掉以后 sprite sheet 更小，但是动画定位会多一个问题：
 
 ```text
 如果只按 frame.w / frame.h 直接画，
@@ -227,12 +282,12 @@ spriteSourceSize.h == frame.h
 人物会看起来抖动。
 ```
 
-`spriteSourceSize` 就是用来描述“这块 trimmed 图原本在 192x192 画布里的哪里”。
+`spriteSourceSize` 就是用来描述“这块 trimmed sprite 原本在 192x192 画布里的哪里”。
 
 
 ### `rotated`
 
-`rotated: false` 表示图集里的这块图没有被旋转。
+`rotated: false` 表示 atlas 里的这块图没有被旋转。
 
 当前渲染代码默认 `rotated == false`。如果以后 Aseprite 导出 rotated frame，
 `draw_image_corp` 需要额外支持旋转采样。
@@ -254,7 +309,7 @@ spriteSourceSize.h == frame.h
 如果只是静态画一张图，`frame` 基本够用：
 
 ```text
-从 spritesheet 里取 frame 这块
+从 atlas 里取 frame 这块
 画到 buffer 某个位置
 ```
 
@@ -263,13 +318,13 @@ spriteSourceSize.h == frame.h
 `frame` 只回答：
 
 ```text
-我要从 spritesheet 里读哪一块像素？
+我要从 atlas 里读哪一块像素？
 ```
 
 它不回答：
 
 ```text
-这块 trimmed 图在原始动画帧里原本在哪里？
+这块 trimmed sprite 在原始动画帧里原本在哪里？
 角色的脚底/中心/武器挂点在哪里？
 这一帧和上一帧如何保持稳定不抖？
 ```
@@ -302,7 +357,7 @@ Idle 3:
 +--------------------------+
 ```
 
-trim 后存进 spritesheet，可能变成：
+trim 后存进 atlas，可能变成：
 
 ```text
 Idle 0: 79 x 89
@@ -311,16 +366,16 @@ Run 4 : 93 x 91
 Attack: 120 x 104
 ```
 
-如果只用 `frame`，并且每一帧都从同一个 `draw_pos` 开始画：
+如果只用 `frame`，并且每一帧都从同一个 `sprite_dest_top_left` 开始画：
 
 ```text
-draw_pos
+sprite_dest_top_left
   v
   +-------------+     第一帧
   | 人物        |
   +-------------+
 
-draw_pos
+sprite_dest_top_left
   v
   +----------------+  第二帧，因为 trim 后的图大小和内容位置不同
   |   人物         |  看起来可能会跳
@@ -351,31 +406,13 @@ draw_pos
 }
 ```
 
-表示：
-
-```text
-原始 192x192 source frame
-
-(0,0)
-+--------------------------------+
-|                                |
-|      spriteSourceSize.y = 48   |
-|              v                 |
-|      +-------------------+     |
-|      | frame 这块图      |     |
-|      | 79 x 89           |     |
-|      +-------------------+     |
-|      ^                         |
-|      spriteSourceSize.x = 62   |
-|                                |
-+--------------------------------+
-```
+图示见术语表里的 `spriteSourceSize` 核心图示。
 
 所以：
 
 ```text
 frame
-= 这块图在 spritesheet 里的位置
+= 这块图在 atlas 里的位置
 
 spriteSourceSize
 = 这块图原本在 source frame 里的位置
@@ -385,7 +422,7 @@ sourceSize
 ```
 
 
-### 用 `spriteSourceSize` 还原到固定的 source anchor
+### 用 `spriteSourceSize` 还原到固定的 source pivot
 
 对角色动画来说，我们通常希望找到一个稳定的点，比如：
 
@@ -396,35 +433,17 @@ sourceSize
 ```
 
 这个点不应该每一帧重新根据 trimmed sprite 的红框来算。否则如果角色跳起来、
-被击飞、攻击时身体在原始帧里移动，代码会把它重新拉回 anchor，动画里的位移
+被击飞、攻击时身体在原始帧里移动，代码会把它重新拉回 pivot，动画里的位移
 就丢了。
 
 更合理的做法是：在原始 `sourceSize` 坐标系里选一个固定点。Warrior 的 Idle
 帧底部中心大约是 `V2i{101, 137}`，当前代码在视觉上微调为：
 
 ```odin
-source_anchor := V2i{101, 130}
+pivot_in_source := V2i{101, 130}
 ```
 
-图解：
-
-```text
-原始 source frame，固定坐标系
-
-(0,0)
-+--------------------------------+
-|                                |
-|      +-------------------+     |
-|      |                   |     |
-|      | visible sprite    |     |
-|      |                   |     |
-|      +-------------------+     |
-|             x                  |
-|             ^                  |
-|             source_anchor      |
-|                                |
-+--------------------------------+
-```
+图示见术语表里的 `pivot_in_source` 核心图示。
 
 `spriteSourceSize.x/y` 的作用是：告诉我们当前 trimmed sprite 的左上角在
 这个原始 source frame 里的哪里。
@@ -432,20 +451,20 @@ source_anchor := V2i{101, 130}
 所以画到 buffer 时：
 
 ```odin
-draw_pos =
-    anchor_buffer_pos +
+sprite_dest_top_left =
+    entity_pivot_buffer_pos +
     V2i{frame.spriteSourceSize.x, frame.spriteSourceSize.y} -
-    source_anchor
+    pivot_in_source
 ```
 
 这里的含义是：
 
 ```text
-anchor_buffer_pos 是游戏世界里实体的位置落到屏幕上的点
-source_anchor 是素材原始 frame 里的固定角色锚点，当前 Warrior 使用 V2i{101, 130}
+entity_pivot_buffer_pos 是游戏世界里实体的位置落到屏幕上的点
+pivot_in_source 是素材原始 frame 里的固定角色 pivot，当前 Warrior 使用 V2i{101, 130}
 spriteSourceSize.xy 是当前 trimmed sprite 相对原始 frame 的左上角
 
-让 source_anchor 对齐到游戏里的 anchor_buffer_pos，
+让 pivot_in_source 对齐到游戏里的 entity_pivot_buffer_pos，
 同时保留当前帧在原始 source frame 里的位移。
 ```
 
@@ -453,7 +472,7 @@ spriteSourceSize.xy 是当前 trimmed sprite 相对原始 frame 的左上角
 
 ```text
 frame
-= 我从图集里裁哪一块
+= 我从 atlas 里裁哪一块
 
 spriteSourceSize
 = 这块裁出来的小图，原本在 source frame 的哪里
@@ -461,8 +480,8 @@ spriteSourceSize
 sourceSize
 = 原始动画帧的统一坐标系有多大
 
-source_anchor
-= 我在这个统一坐标系里选的固定角色锚点
+pivot_in_source
+= 我在这个统一坐标系里选的固定角色 pivot
 ```
 
 
@@ -472,48 +491,20 @@ source_anchor
 
 ```text
 1. 原始 source frame
-2. spritesheet 里的 atlas frame
+2. texture atlas 里的 source rect
 3. buffer 上的 destination rect
 ```
 
 ### 1. 原始 source frame
 
 这是 Aseprite 里 trim 之前的 `192x192` 画布。
-
-```text
-source frame
-
-(0,0)
-+--------------------------------+
-|                                |
-|      +-------------------+     |
-|      | trimmed sprite    |     |
-|      +-------------------+     |
-|                                |
-+--------------------------------+
-                         192x192
-```
-
-这个方块由 `sourceSize` 描述。
+这个方块由 `sourceSize` 描述。图示见术语表里的 `sourceSize` 核心图示。
 
 
-### 2. spritesheet 里的 atlas frame
+### 2. texture atlas 里的 source rect
 
 这是 `Warrior.png` 里实际存储的 trimmed 小图。
-
-```text
-spritesheet
-
-(0,0)
-+--------------------------------------------------+
-| +-------------------+ +-------------------+      |
-| | Idle 0            | | Idle 1            |      |
-| +-------------------+ +-------------------+      |
-|                                                  |
-+--------------------------------------------------+
-```
-
-这个方块由 `frame` 描述：
+这个方块由 `frame` 描述。图示见术语表里的 `frame` 核心图示。
 
 ```text
 frame.x, frame.y, frame.w, frame.h
@@ -524,26 +515,11 @@ frame.x, frame.y, frame.w, frame.h
 
 这是软件渲染器最终要画到屏幕 buffer 上的方块。
 
-```text
-backbuffer
-
-(0,0)
-+--------------------------------------------------+
-|                                                  |
-|       draw_pos                                   |
-|          v                                       |
-|          +-------------------+                   |
-|          | visible sprite    |                   |
-|          +-------------------+                   |
-|                                                  |
-+--------------------------------------------------+
-```
-
 这个方块由代码算出来：
 
 ```odin
-draw_pos    // buffer 上的左上角
-sprite_size // 通常是 frame.w / frame.h
+sprite_dest_top_left // buffer 上的左上角
+source_rect_size     // 通常是 frame.w / frame.h
 ```
 
 
@@ -556,16 +532,16 @@ draw_image_corp(
     buffer_pos,
     img,
     buffer,
-    sprite_size = V2i{frame.frame.w, frame.frame.h},
-    atlas_offset = V2i{frame.frame.x, frame.frame.y},
+    source_rect_size = V2i{anim_frame.frame.w, anim_frame.frame.h},
+    source_rect_pos = V2i{anim_frame.frame.x, anim_frame.frame.y},
 )
 ```
 
 这里有两个坐标空间：
 
 ```text
-buffer_pos   = 画到 buffer 的哪里
-atlas_offset = 从 spritesheet 的哪里开始读
+buffer_pos      = 画到 buffer 的哪里
+source_rect_pos = 从 atlas 的哪里开始读
 ```
 
 ### 第一步：在 buffer 上确定目标方块
@@ -573,7 +549,7 @@ atlas_offset = 从 spritesheet 的哪里开始读
 ```odin
 sprite_rect := Rectangle {
     min = buffer_pos,
-    max = buffer_pos + sprite_size,
+    max = buffer_pos + source_rect_size,
 }
 ```
 
@@ -626,8 +602,8 @@ buffer
 
 ```odin
 for ty in draw_rect.min.y ..< draw_rect.max.y {
-    sy := ty - buffer_pos.y + atlas_offset.y
-    sx := draw_rect.min.x - buffer_pos.x + atlas_offset.x
+    sy := ty - buffer_pos.y + source_rect_pos.y
+    sx := draw_rect.min.x - buffer_pos.x + source_rect_pos.x
 }
 ```
 
@@ -640,22 +616,22 @@ ty - buffer_pos.y
 draw_rect.min.x - buffer_pos.x
 = 当前这一行起点在 sprite_rect 内部的局部 x
 
-atlas_offset.x / y
-= 当前帧在 spritesheet 里的左上角
+source_rect_pos.x / y
+= 当前帧在 atlas 里的左上角
 ```
 
 所以：
 
 ```text
-source_x = atlas_offset.x + local_sprite_x
-source_y = atlas_offset.y + local_sprite_y
+source_x = source_rect_pos.x + local_sprite_x
+source_y = source_rect_pos.y + local_sprite_y
 ```
 
 也就是：
 
 ```text
 buffer 上第 N 个像素
-对应 spritesheet 里 atlas_offset 后面的第 N 个像素
+对应 atlas 里 source_rect_pos 后面的第 N 个像素
 ```
 
 
@@ -682,8 +658,8 @@ clip := &result.clips[status]
 
 ```odin
 key := fmt.tprintf("%s #%s %d.aseprite", prefix, tag.name, i)
-frame := sheet.frames[key]
-append(&clip.frames, frame)
+anim_frame := sheet.frames[key]
+append(&clip.frames, anim_frame)
 ```
 
 最后得到：
@@ -696,8 +672,8 @@ Animation.clips[EntityStatus.Run]  = Run 的所有 AseFrame
 运行时：
 
 ```odin
-clips := animation.clips[entity.status].frames
-frame := clips[entity.anim_frame_idx]
+clip_frames := animation.clips[entity.status].frames
+anim_frame := clip_frames[entity.anim_frame_idx]
 ```
 
 然后用：
@@ -726,7 +702,7 @@ rel_pos := relative_pos(entity.pos, game_state.camera_pos)
 然后变成 buffer 坐标：
 
 ```odin
-anchor_buffer_pos := rel_pos_to_buffer_pos(rel_pos, image_buffer)
+entity_pivot_buffer_pos := rel_pos_to_buffer_pos(rel_pos, image_buffer)
 ```
 
 当前公式：
@@ -768,7 +744,7 @@ buffer 坐标
      +y
 ```
 
-`anchor_buffer_pos` 是实体 anchor 在 buffer 上的位置。当前项目里，它更像
+`entity_pivot_buffer_pos` 是实体 pivot 在 buffer 上的位置。当前项目里，它更像
 “实体脚底中心”。
 
 
@@ -789,22 +765,22 @@ entity_size_px := V2i {
 }
 ```
 
-从 anchor 得到 body 左上角：
+从 pivot 得到 body 左上角：
 
 ```odin
-body_top_left := entity_top_left_from_anchor(anchor_buffer_pos, entity_size_px)
+body_top_left := entity_top_left_from_pivot(entity_pivot_buffer_pos, entity_size_px)
 ```
 
 当前公式：
 
 ```odin
-body_top_left = anchor_buffer_pos - V2i{size_px.x / 2, size_px.y}
+body_top_left = entity_pivot_buffer_pos - V2i{size_px.x / 2, size_px.y}
 ```
 
 图解：
 
 ```text
-anchor_buffer_pos
+entity_pivot_buffer_pos
       x
       |
       | size_px.y
@@ -815,7 +791,7 @@ anchor_buffer_pos
 |           |
 +-----------+
 
-body_top_left = anchor - (width / 2, height)
+body_top_left = entity_pivot_buffer_pos - (width / 2, height)
 ```
 
 
@@ -824,10 +800,10 @@ body_top_left = anchor - (width / 2, height)
 裁图和放置是两件事。
 
 ```text
-frame / atlas_offset
+frame / source_rect_pos
 = 决定从 Warrior.png 读哪一块
 
-draw_pos
+sprite_dest_top_left
 = 决定把这块图画到 buffer 的哪里
 ```
 
@@ -835,30 +811,30 @@ draw_pos
 
 ```text
 frame 正确
-atlas_offset 正确
-sprite_size 正确
+source_rect_pos 正确
+source_rect_size 正确
 draw_image_corp 的像素复制正确
 ```
 
 如果整个人位置偏了，问题通常在：
 
 ```text
-draw_pos 怎么算
+sprite_dest_top_left 怎么算
 ```
 
 
 ## 当前最终动画放置模型
 
-当前采用 **source frame 固定锚点模型**。
+当前采用 **source frame 固定 pivot 模型**。
 
 核心原则：
 
 ```text
-entity anchor
-= 游戏世界里的实体锚点，落到屏幕上以后是 anchor_buffer_pos
+entity pivot
+= 游戏世界里的实体 pivot，落到屏幕上以后是 entity_pivot_buffer_pos
 
-source_anchor
-= 原始 source frame 坐标系里的固定角色锚点
+pivot_in_source
+= 原始 source frame 坐标系里的固定角色 pivot
 
 spriteSourceSize.xy
 = 当前 trimmed sprite 左上角在原始 source frame 里的位置
@@ -867,71 +843,51 @@ spriteSourceSize.xy
 代码里的公式是：
 
 ```odin
-source_anchor := animation.anchorOffset
-source_frame_to_sprite := V2i{frame.spriteSourceSize.x, frame.spriteSourceSize.y}
+pivot_in_source := animation.pivot_in_source
+trimmed_offset_in_source := V2i{anim_frame.spriteSourceSize.x, anim_frame.spriteSourceSize.y}
 
-draw_pos =
-    anchor_buffer_pos +
-    source_frame_to_sprite -
-    source_anchor
+sprite_dest_top_left =
+    entity_pivot_buffer_pos +
+    trimmed_offset_in_source -
+    pivot_in_source
 ```
 
 含义：
 
 ```text
-把原始 source frame 里的固定 source_anchor 对齐到 entity anchor，
+把原始 source frame 里的固定 pivot_in_source 对齐到 entity pivot，
 再根据 spriteSourceSize.xy 找到当前 trimmed sprite 的左上角。
 ```
 
-图解：
-
-```text
-原始 source frame 内部
-
-(0,0)
-+--------------------------------+
-|                                |
-|      +-------------------+     |
-|      |                   |     |
-|      | visible sprite    |     |
-|      |                   |     |
-|      +-------------------+     |
-|             x                  |
-|             ^                  |
-|             source_anchor      |
-|                                |
-+--------------------------------+
-
-trimmed sprite 左上角 = spriteSourceSize.xy
-source_anchor = 美术/代码约定的固定角色锚点，当前 Warrior 使用 V2i{101, 130}
-```
+图示见术语表里的 `pivot_in_source` 核心图示。
 
 画到 buffer 时：
 
 ```text
 buffer
 
-anchor_buffer_pos
+entity_pivot_buffer_pos
         x
         ^
         |
-让 source_anchor 对齐到这里
+让 pivot_in_source 对齐到这里
 
-draw_pos = anchor_buffer_pos + spriteSourceSize.xy - source_anchor
+sprite_dest_top_left =
+    entity_pivot_buffer_pos + spriteSourceSize.xy - pivot_in_source
 ```
 
 这个模型把概念分开了：
 
 ```text
-entity anchor 负责世界/屏幕位置
-source_anchor 负责素材原始 frame 内部的固定角色锚点
+entity pivot 负责世界/屏幕位置
+pivot_in_source 负责素材原始 frame 内部的固定角色 pivot
 spriteSourceSize 负责 trim 还原
 frame 负责 atlas 裁图
 ```
 
 这个模型的好处是：如果某一帧里角色真的跳起、后仰、攻击前探，这个位移会体
 现在 `spriteSourceSize.x/y` 里。代码不会每帧重新用 trimmed sprite 的红框底
-部去对齐 anchor，所以不会把动画里的真实位移抹掉。
+部去对齐 pivot，所以不会把动画里的真实位移抹掉。
 
 
 ## 排错时怎么看
@@ -939,14 +895,14 @@ frame 负责 atlas 裁图
 如果之后动画位置又不对，先分清是哪一层错：
 
 1. 人物形状不完整、裁错帧：
-   检查 `frame`、`sprite_size`、`atlas_offset`、`draw_image_corp`。
+   检查 `frame`、`source_rect_size`、`source_rect_pos`、`draw_image_corp`。
 
 2. 人物形状正确，但整体位置偏：
-   检查 `anchor_buffer_pos`、`source_anchor`、`spriteSourceSize.xy` 到 `draw_pos`
+   检查 `entity_pivot_buffer_pos`、`pivot_in_source`、`spriteSourceSize.xy` 到 `sprite_dest_top_left`
    的公式。
 
 3. body box 正确，动画整体偏：
-   世界坐标和 body 计算大概率没问题，重点看 source anchor 是否需要调整。
+   世界坐标和 body 计算大概率没问题，重点看 `pivot_in_source` 是否需要调整。
 
 4. 某些动作帧突然跳动：
    先确认这是美术帧在原始 source frame 里的真实位移，还是 JSON 里的
@@ -958,7 +914,7 @@ frame 负责 atlas 裁图
 WorldPosition
 -> relative_pos
 -> rel_pos_to_buffer_pos
--> anchor_buffer_pos
--> anchor_buffer_pos + spriteSourceSize.xy - source_anchor
--> draw_pos
+-> entity_pivot_buffer_pos
+-> entity_pivot_buffer_pos + spriteSourceSize.xy - pivot_in_source
+-> sprite_dest_top_left
 ```
