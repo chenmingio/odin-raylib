@@ -10,14 +10,17 @@ AseRect :: struct {
 }
 
 AseFrame :: struct {
+	//atlas 里的采样矩形：当前帧在 texture/atlas 内的位置和尺寸。
 	frame:            AseRect,
 	rotated:          bool,
 	trimmed:          bool,
+	//trim 后的可见 sprite 在原始帧画布里的位置和尺寸
 	spriteSourceSize: AseRect,
+	// trim 之前的原始帧画布尺寸
 	sourceSize:       struct {
 		w, h: int,
 	},
-	duration:         i32, // ms
+	duration:         i32, // 当前动画帧的播放时长，单位是毫秒。
 }
 
 AseFrameTag :: struct {
@@ -32,7 +35,7 @@ AseMeta :: struct {
 		w, h: i32,
 	},
 	scale:     string,
-	frameTags: []AseFrameTag,
+	frameTags: []AseFrameTag, //Aseprite 里给一段帧范围命名的标签；代码里会转换成动画 clip。
 }
 
 AseSpriteSheet :: struct {
