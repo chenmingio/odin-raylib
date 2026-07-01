@@ -24,6 +24,12 @@ mkdir -p build && odin build . -out:build/game -o:speed && odin build game -out:
 # 运行
 ./build/game
 
+# 创建/更新开发用 macOS app bundle
+scripts/build_macos_app.sh --build
+
+# 通过 app bundle 启动
+open build/OdinRaylib.app
+
 # 测试
 odin test game
 odin test platform

@@ -40,6 +40,12 @@ mkdir -p build && odin build . -out:build/game -o:speed && odin build game -out:
 
 # 运行
 ./build/game
+
+# 创建/更新开发用 macOS app bundle
+scripts/build_macos_app.sh --build
+
+# 通过 app bundle 启动，获得稳定的 macOS application identity
+open build/OdinRaylib.app
 ```
 
 ## 热重载开发流程
@@ -75,6 +81,8 @@ mkdir -p build && odin build . -out:build/game -o:speed && odin build game -out:
 | Build Debug | 构建调试版本（平台层 + 游戏库） |
 | Build Platform | 仅构建平台层 |
 | Build Game Library | 仅构建游戏库（热重载时用） |
+| Build macOS App | 构建调试版本并创建/更新开发用 `.app` |
+| Run macOS App | 构建调试版本、更新 `.app` 并通过 app bundle 启动 |
 | Build Release | 构建发布版本 |
 | Run Game | 运行游戏 |
 | Clean Build | 清理构建目录 |

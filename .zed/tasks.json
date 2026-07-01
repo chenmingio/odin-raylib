@@ -36,6 +36,24 @@
     "reveal": "always"
   },
   {
+    "label": "Build macOS App",
+    "command": "sh",
+    "args": [
+      "-c",
+      "set -ex && scripts/build_macos_app.sh --build"
+    ],
+    "reveal": "always"
+  },
+  {
+    "label": "Run macOS App",
+    "command": "sh",
+    "args": [
+      "-c",
+      "set -ex && scripts/build_macos_app.sh --build --open"
+    ],
+    "reveal": "always"
+  },
+  {
     "label": "Run Game",
     "command": "sh",
     "args": [

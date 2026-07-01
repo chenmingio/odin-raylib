@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+launcher_dir="$(cd "$(dirname "$0")" && pwd)"
+project_root="$(cd "$launcher_dir/../../../.." && pwd)"
+game_binary="$project_root/build/game"
+
+if [[ ! -x "$game_binary" ]]; then
+  echo "Missing executable: $game_binary" >&2
+  echo "Run: scripts/build_macos_app.sh --build" >&2
+  exit 1
+fi
+
+cd "$project_root"
+exec "$game_binary"
