@@ -264,7 +264,7 @@ draw_entity_image :: proc(
 
 // 假设动画图片水平排列，一共有frames帧
 draw_entity_animation :: proc(
-	entity_pivot_buffer_pos: V2i,
+	dest_buffer_pos: V2i,
 	animation: Animation,
 	entity: ^LowEntity,
 	buffer: OffScreenBuffer,
@@ -292,10 +292,10 @@ draw_entity_animation :: proc(
 
 	pivot_in_source := animation.pivot_in_source
 	offset_from_pivot_to_dest := trim_offset_in_source - pivot_in_source
+	// reverse通过画图可以发现，是pivot到dest点翻转再减去frame上边框向量构成的新的向量
 	if reverse {
 		offset_from_pivot_to_dest =
-			offset_from_pivot_to_dest * V2i{-1, 1} -
-			V2i{source_rect_size.x, 0}
+			offset_from_pivot_to_dest * V2i{-1, 1} - V2i{source_rect_size.x, 0}
 	}
 
 	// 逻辑：把原始 source frame 里的固定 pivot 对齐到实体 pivot，再画 trimmed sprite。
@@ -303,7 +303,7 @@ draw_entity_animation :: proc(
 	// trim_offset_in_source 从trimmed sprite还原为source frame的左上角
 	// pivot_in_source 从source frame左上角到固定pivot点（约定为画面上的人物重心）
 	// 向量的方向根据xy的正负和buffer pos的正负方向来确定箭头方向。
-	sprite_dest_top_left := entity_pivot_buffer_pos + offset_from_pivot_to_dest
+	sprite_dest_top_left := dest_buffer_pos + offset_from_pivot_to_dest
 
 	draw_image_corp(
 		sprite_dest_top_left,
