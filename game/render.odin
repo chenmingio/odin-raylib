@@ -288,16 +288,22 @@ draw_entity_animation :: proc(
 	source_rect_size := V2i{anim_frame.frame.w, anim_frame.frame.h}
 	source_rect_pos := V2i{anim_frame.frame.x, anim_frame.frame.y}
 
-	trimmed_offset_in_source := V2i{anim_frame.spriteSourceSize.x, anim_frame.spriteSourceSize.y}
+	trim_offset_in_source := V2i{anim_frame.spriteSourceSize.x, anim_frame.spriteSourceSize.y}
 
 	pivot_in_source := animation.pivot_in_source
-	if reverse {pivot_in_source.x = i32(anim_frame.sourceSize.w) - animation.pivot_in_source.x}
+	offset_from_pivot_to_dest := trim_offset_in_source - pivot_in_source
+	if reverse {
+		offset_from_pivot_to_dest =
+			offset_from_pivot_to_dest * V2i{-1, 1} -
+			V2i{source_rect_size.x, 0}
+	}
 
 	// 逻辑：把原始 source frame 里的固定 pivot 对齐到实体 pivot，再画 trimmed sprite。
 	// entity_pivot_buffer_pos 基础位置，从哪里开始画，此时sprite的左上角在目标点
-	// trimmed_offset_in_source 从trimmed sprite还原为source frame的左上角
+	// trim_offset_in_source 从trimmed sprite还原为source frame的左上角
 	// pivot_in_source 从source frame左上角到固定pivot点（约定为画面上的人物重心）
-	sprite_dest_top_left := entity_pivot_buffer_pos + trimmed_offset_in_source - pivot_in_source
+	// 向量的方向根据xy的正负和buffer pos的正负方向来确定箭头方向。
+	sprite_dest_top_left := entity_pivot_buffer_pos + offset_from_pivot_to_dest
 
 	draw_image_corp(
 		sprite_dest_top_left,
