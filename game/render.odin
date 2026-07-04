@@ -10,6 +10,7 @@ import "core:testing"
 // RGBA
 RED := intrinsics.byte_swap(u32(0xFF0000FF))
 GREEN := intrinsics.byte_swap(u32(0x00FF00FF))
+BLUE := intrinsics.byte_swap(u32(0x0000FFFF))
 
 
 OffScreenBuffer :: struct {
@@ -83,6 +84,13 @@ draw_line_y :: proc(x: i32, buffer: OffScreenBuffer) {
 	for row in 0 ..< buffer.height {
 		buffer.data[row * buffer.width + x] = RED
 	}
+}
+
+draw_dot :: proc(pos: [2]i32, buffer: OffScreenBuffer) {
+	if (pos.x < 0 || pos.x >= buffer.width || pos.y < 0 || pos.y >= buffer.height) {
+		return
+	}
+	buffer.data[pos.y * buffer.width + pos.x] = BLUE
 }
 
 blend :: proc(target, source: []u32, reverse: bool = false) {
@@ -251,11 +259,13 @@ draw_entity_size :: proc(rel_position: V3, size: V2, buffer: OffScreenBuffer) {
 }
 
 draw_entity_image :: proc(
-	top_left_pos: V2i,
+	dest_buffer_pos: V2i,
 	image: ^image.Image,
 	entity: ^LowEntity,
 	buffer: OffScreenBuffer,
 ) {
+	entity_size_px := V2i{i32(meter_to_pixel(entity.size.x)), i32(meter_to_pixel(entity.size.y))}
+	top_left_pos := dest_buffer_pos - V2i{entity_size_px.x / 2, entity_size_px.y}
 	size_px := V2i{i32(meter_to_pixel(entity^.size.x)), i32(meter_to_pixel(entity^.size.y))}
 
 	draw_image_simple(top_left_pos, image, buffer)

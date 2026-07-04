@@ -49,9 +49,11 @@ canonicalize :: proc(p: WorldPosition) -> WorldPosition {
 }
 
 relative_pos :: proc(p1, p2: WorldPosition) -> V3 {
-	di := p1.chunkXYZ - p2.chunkXYZ // [3]i32
-	df := V3{f32(di.x), f32(di.y), f32(di.z)} // Vector3f32
-	return df + p1.offset - p2.offset
+	delta_i := p1.chunkXYZ - p2.chunkXYZ
+	// chunk如何对应rel_pos?目前是chunkSize=1m
+	// 相当于整数部分为chunkXYZ，小数部分为relPos
+	delta_f := V3{f32(delta_i.x), f32(delta_i.y), f32(delta_i.z)}
+	return delta_f + p1.offset - p2.offset
 }
 
 world_pos_add :: proc(p: WorldPosition, d: V3) -> WorldPosition {

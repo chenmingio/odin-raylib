@@ -260,7 +260,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		move * player_speed * time_span,
 	)
 
-	// game_state^.camera_pos = game_state^.player^.pos
+	game_state^.camera_pos = game_state^.player^.pos
 
 	// 准备好初始条件（物体，初始速度）以后，开始区域计算模拟
 	sim_region := begin_sim(game_state, game_memory)
@@ -268,19 +268,19 @@ update_and_render: UpdateAndRenderProc : proc(
 	end_sim(game_state, &sim_region, game_memory)
 
 	// 绘制
-
-	// 简单绘制tilemap
-	// draw map
-	for y in 0 ..< tileMapY {
-		for x in 0 ..< tileMapX {
-			tile := game_state^.game_map[y][x]
-			draw_tile_map(V2i{i32(x), i32(y)}, tile, game_state^.tilemap1, image_buffer)
-		}
-	}
-
 	// screen center reference, drawn before entities so debug anchors stay visible.
 	draw_line_x(image_buffer.height / 2, image_buffer)
 	draw_line_y(image_buffer.width / 2, image_buffer)
+
+	// draw line on chunk corner
+	for x in -10 ..< 10 {
+		for y in -10 ..< 10 {
+			chunkPivot := WorldPosition{V3i{i32(x), i32(y), 0}, 0}
+			rel_pos := relative_pos(chunkPivot, game_state^.camera_pos)
+			buffer_pos := rel_pos_to_buffer_pos(rel_pos, image_buffer)
+			draw_dot(buffer_pos, image_buffer)
+		}
+	}
 
 	entities := active_entities(game_state)
 	for i in 0 ..< len(entities) {
@@ -296,7 +296,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			i32(meter_to_pixel(entity.size.x)),
 			i32(meter_to_pixel(entity.size.y)),
 		}
-		body_top_left := entity_top_left_from_pivot(entity_pivot_buffer_pos, entity_size_px)
+		top_left_buffer_pos := entity_top_left_from_pivot(entity_pivot_buffer_pos, entity_size_px)
 
 		// 是否玩家
 		is_player := entity.type == EntityType.Player
@@ -312,7 +312,12 @@ update_and_render: UpdateAndRenderProc : proc(
 			)
 			draw_entity_body_rectangle(entity_pivot_buffer_pos, entity_size_px, image_buffer)
 		case .Wall:
-			draw_entity_image(body_top_left, game_state^.rock_images[0], entity, image_buffer)
+			draw_entity_image(
+				entity_pivot_buffer_pos,
+				game_state^.rock_images[0],
+				entity,
+				image_buffer,
+			)
 		case .Tree:
 		case .Enemy:
 		case .Null:
