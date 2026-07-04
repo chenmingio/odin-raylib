@@ -323,6 +323,7 @@ draw_entity_animation :: proc(
 		source_rect_pos,
 		reverse,
 	)
+	draw_entity_body_rectangle(dest_buffer_pos, meter_to_pixel(entity.size), buffer)
 }
 
 @(test)

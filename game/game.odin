@@ -17,20 +17,21 @@ V3i :: [3]i32
 
 SCALE :: f32(100.0)
 
-meter_to_pixel_f32 :: proc(x: f32) -> f32 {
-	return x * SCALE
+meter_to_pixel_v1 :: proc(x: f32) -> i32 {
+	return i32(x * SCALE)
 }
 
-meter_to_pixel_v2 :: proc(v: V2) -> V2 {
-	return V2{v.x * SCALE, v.y * SCALE}
+meter_to_pixel_v2 :: proc(v: V2) -> V2i {
+	return V2i{meter_to_pixel_v1(v.x), meter_to_pixel_v1(v.y)}
 }
 
-meter_to_pixel_v3 :: proc(v: V3) -> V3 {
-	return V3{v.x * SCALE, v.y * SCALE, v.z * SCALE}
+
+meter_to_pixel_v3 :: proc(v: V3) -> V3i {
+	return V3i{meter_to_pixel_v1(v.x), meter_to_pixel_v1(v.y), meter_to_pixel_v1(v.z)}
 }
 
 meter_to_pixel :: proc {
-	meter_to_pixel_f32,
+	meter_to_pixel_v1,
 	meter_to_pixel_v2,
 	meter_to_pixel_v3,
 }
@@ -149,7 +150,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		player := LowEntity {
 			WorldPosition{V3i{0, 0, 0}, V3{0, 0, 0}},
 			EntityType.Player,
-			V2{0.8, 0.8},
+			V2{0.6, 0.7},
 			EntityStatus.Idle,
 			0,
 			0,
@@ -310,7 +311,6 @@ update_and_render: UpdateAndRenderProc : proc(
 				image_buffer,
 				time_span,
 			)
-			draw_entity_body_rectangle(entity_pivot_buffer_pos, entity_size_px, image_buffer)
 		case .Wall:
 			draw_entity_image(
 				entity_pivot_buffer_pos,
