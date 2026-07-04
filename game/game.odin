@@ -25,7 +25,6 @@ meter_to_pixel_v2 :: proc(v: V2) -> V2i {
 	return V2i{meter_to_pixel_v1(v.x), meter_to_pixel_v1(v.y)}
 }
 
-
 meter_to_pixel_v3 :: proc(v: V3) -> V3i {
 	return V3i{meter_to_pixel_v1(v.x), meter_to_pixel_v1(v.y), meter_to_pixel_v1(v.z)}
 }
@@ -155,20 +154,22 @@ update_and_render: UpdateAndRenderProc : proc(
 			0,
 			0,
 			Direction.Forward,
+			0,
 		}
 		add_entity(game_state, player, game_memory)
 		game_state^.player = &game_state^.entities[0]
 
 		// 初始化地图
-		for i in 0 ..< 10 {
+		for i in 1 ..< 10 {
 			entity := LowEntity {
-				WorldPosition{V3i{i32(i), 0, 0}, V3{5, 5, 0}},
+				WorldPosition{V3i{i32(i), 0, 0}, V3{0, 0, 0}},
 				EntityType.Wall,
 				V2{wall_size, wall_size},
 				EntityStatus.Null,
 				0,
 				0,
 				Direction.Forward,
+				V2i{32, 48},
 			}
 			add_entity(game_state, entity, game_memory)
 		}

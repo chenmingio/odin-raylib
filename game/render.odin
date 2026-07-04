@@ -264,12 +264,11 @@ draw_entity_image :: proc(
 	entity: ^LowEntity,
 	buffer: OffScreenBuffer,
 ) {
-	entity_size_px := V2i{i32(meter_to_pixel(entity.size.x)), i32(meter_to_pixel(entity.size.y))}
-	top_left_pos := dest_buffer_pos - V2i{entity_size_px.x / 2, entity_size_px.y}
-	size_px := V2i{i32(meter_to_pixel(entity^.size.x)), i32(meter_to_pixel(entity^.size.y))}
+	size_px := meter_to_pixel(entity.size)
+	top_left_pos := dest_buffer_pos - entity.img_pivot_offset
 
 	draw_image_simple(top_left_pos, image, buffer)
-	draw_rectangle(top_left_pos, size_px, RED, buffer, outline = true)
+	draw_entity_body_rectangle(dest_buffer_pos, size_px, buffer)
 }
 
 // 假设动画图片水平排列，一共有frames帧

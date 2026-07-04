@@ -49,13 +49,14 @@ name_to_entity_status :: proc(name: string) -> EntityStatus {
 }
 
 LowEntity :: struct {
-	pos:            WorldPosition,
-	type:           EntityType,
-	size:           V2,
-	status:         EntityStatus,
-	anim_frame_idx: i32,
-	anim_time:      i32, // ms
-	direction:      Direction,
+	pos:              WorldPosition,
+	type:             EntityType,
+	size:             V2,
+	status:           EntityStatus,
+	anim_frame_idx:   i32,
+	anim_time:        i32, // ms
+	direction:        Direction,
+	img_pivot_offset: V2i,
 }
 
 HighEntity :: struct {
