@@ -12,8 +12,8 @@ SimRegion :: struct {
 begin_sim :: proc(state: ^GameState, memory: ^Memory) -> SimRegion {
 	result := SimRegion{}
 	// 根据camera的坐标找到chunk
-	for x in state.camera_pos.chunkXYZ.x ..< state.camera_pos.chunkXYZ.x + 1 {
-		for y in state.camera_pos.chunkXYZ.y ..< state.camera_pos.chunkXYZ.y + 1 {
+	for x in state.camera_pos.chunkXYZ.x - 10 ..< state.camera_pos.chunkXYZ.x + 10 {
+		for y in state.camera_pos.chunkXYZ.y - 5 ..< state.camera_pos.chunkXYZ.y + 5 {
 			for z in state.camera_pos.chunkXYZ.z ..< state.camera_pos.chunkXYZ.z + 1 {
 				chunk := get_world_chunk(state, V3i{x, y, z}, memory)
 				assert(chunk != nil)

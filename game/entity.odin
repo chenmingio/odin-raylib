@@ -66,8 +66,15 @@ HighEntity :: struct {
 }
 
 
-// 辅助函数：获取活跃实体的 slice
+// 获取活跃实体
+// 目前是camera范围里10米的chunk
 active_entities :: proc(state: ^GameState) -> []LowEntity {
+	camera_pos_chunk := state.camera_pos.chunkXYZ
+	for x in camera_pos_chunk.x - 10 ..< camera_pos_chunk.x + 10 {
+		for y in camera_pos_chunk.y - 5 ..< camera_pos_chunk.y + 5 {
+
+		}
+	}
 	return state.entities[:state.entity_count]
 }
 
@@ -97,7 +104,7 @@ remove_entity_index_from_hash_chunk :: proc(
 	chunk: ^WorldChunk,
 	state: ^GameState,
 ) {
-	chunk := get_world_chunk(state, chunk.chunkXYZ)
+	// chunk := get_world_chunk(state, chunk.chunkXYZ)
 	// 找到含有entity index的block
 	target_slot_idx: u32
 	target_block: ^WorldEntityBlock
@@ -106,6 +113,7 @@ remove_entity_index_from_hash_chunk :: proc(
 	// invariant是“在first block里找空位，后面block都是满的“
 	// 从first block里找最后一个补过去
 	first_block := chunk.first_block
+	assert(first_block != nil)
 	assert(first_block.entity_count > 0)
 	last_slot_storage_index_in_first_block :=
 		first_block.entity_indexes[first_block.entity_count - 1]

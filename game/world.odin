@@ -1,5 +1,6 @@
 package game
 
+import "core:math"
 WorldPosition :: struct {
 	chunkXYZ: V3i,
 	offset:   V3,
@@ -24,36 +25,44 @@ World :: struct {
 	first_free_entity_block: ^WorldEntityBlock,
 }
 
-chunkSideInMeters :: 30
+chunkSideInMeters :: 10
+eps :: 0.0001
 
-canonicalize :: proc(p: WorldPosition) -> WorldPosition {
-	pos := p
+// 目前使用offset坐标原点在chunk的左下角的关系。offset区间为[0, chunkSide)
+// Casey的设计，rel的原点在chunk中点
 
-	d := V3i {
-		i32(pos.offset.x) / chunkSideInMeters,
-		i32(pos.offset.y) / chunkSideInMeters,
-		i32(pos.offset.z) / chunkSideInMeters,
+canonicalize_axis :: proc(chunk: i32, offset: f32) -> (i32, f32) {
+	// 获取chunk部分，
+	// 10.5/10.0 = 1.05 -> floor to 1
+	// -10.5/10.0 = -1.05 -> floor to -2
+	chunk_delta := i32(math.floor(offset / chunkSideInMeters))
+
+	new_chunk := chunk + chunk_delta
+	new_offset := offset - f32(chunk_delta) * chunkSideInMeters
+
+	if (new_offset + eps) > f32(chunkSideInMeters) {
+		new_chunk += 1
+		new_offset = 0
 	}
 
-	pos.chunkXYZ += d
+	assert(new_offset >= 0)
+	assert(new_offset < chunkSideInMeters)
+	return new_chunk, new_offset
+}
 
-	pos.offset.x -= f32(d[0] * chunkSideInMeters)
-	pos.offset.y -= f32(d[1] * chunkSideInMeters)
-	pos.offset.z -= f32(d[2] * chunkSideInMeters)
+canonicalize :: proc(p: WorldPosition) -> WorldPosition {
+	xc, xo := canonicalize_axis(p.chunkXYZ.x, p.offset.x)
+	yc, yo := canonicalize_axis(p.chunkXYZ.y, p.offset.y)
+	zc, zo := canonicalize_axis(p.chunkXYZ.z, p.offset.z)
 
-	assert(abs(pos.offset.x) < chunkSideInMeters)
-	assert(abs(pos.offset.y) < chunkSideInMeters)
-	assert(abs(pos.offset.z) < chunkSideInMeters)
-
-	return pos
+	return WorldPosition{V3i{xc, yc, zc}, V3{xo, yo, zo}}
 }
 
 relative_pos :: proc(p1, p2: WorldPosition) -> V3 {
-	delta_i := p1.chunkXYZ - p2.chunkXYZ
-	// chunk如何对应rel_pos?目前是chunkSize=1m
-	// 相当于整数部分为chunkXYZ，小数部分为relPos
-	delta_f := V3{f32(delta_i.x), f32(delta_i.y), f32(delta_i.z)}
-	return delta_f + p1.offset - p2.offset
+	delta_chunk := p1.chunkXYZ - p2.chunkXYZ
+	delta_offset :=
+		V3{f32(delta_chunk.x), f32(delta_chunk.y), f32(delta_chunk.z)} * chunkSideInMeters
+	return delta_offset + p1.offset - p2.offset
 }
 
 world_pos_add :: proc(p: WorldPosition, d: V3) -> WorldPosition {

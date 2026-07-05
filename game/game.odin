@@ -264,17 +264,11 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	game_state^.camera_pos = game_state^.player^.pos
 
-	// 准备好初始条件（物体，初始速度）以后，开始区域计算模拟
-	sim_region := begin_sim(game_state, game_memory)
-	simulate(&sim_region)
-	end_sim(game_state, &sim_region, game_memory)
-
-	// 绘制
-	// screen center reference, drawn before entities so debug anchors stay visible.
+	// debug坐标轴
 	draw_line_x(image_buffer.height / 2, image_buffer)
 	draw_line_y(image_buffer.width / 2, image_buffer)
 
-	// draw line on chunk corner
+	// debug chunk原点
 	for x in -10 ..< 10 {
 		for y in -10 ..< 10 {
 			chunkPivot := WorldPosition{V3i{i32(x), i32(y), 0}, 0}
@@ -284,47 +278,11 @@ update_and_render: UpdateAndRenderProc : proc(
 		}
 	}
 
-	entities := active_entities(game_state)
-	for i in 0 ..< len(entities) {
-		entity := &entities[i]
-		// 下面计算把worldPos（米）转换为buffer使用的坐标（pixel）
-		entity_pivot_buffer_pos := rel_pos_to_buffer_pos(
-			relative_pos(entity.pos, game_state^.camera_pos),
-			image_buffer,
-		)
-
-		// 玩家帧尺寸 or 一般实体尺寸（米→像素）
-		entity_size_px := V2i {
-			i32(meter_to_pixel(entity.size.x)),
-			i32(meter_to_pixel(entity.size.y)),
-		}
-		top_left_buffer_pos := entity_top_left_from_pivot(entity_pivot_buffer_pos, entity_size_px)
-
-		// 是否玩家
-		is_player := entity.type == EntityType.Player
-
-		switch entity.type {
-		case .Player:
-			draw_entity_animation(
-				entity_pivot_buffer_pos,
-				game_state.unit_animate,
-				entity,
-				image_buffer,
-				time_span,
-			)
-		case .Wall:
-			draw_entity_image(
-				entity_pivot_buffer_pos,
-				game_state^.rock_images[0],
-				entity,
-				image_buffer,
-			)
-		case .Tree:
-		case .Enemy:
-		case .Null:
-			break
-		}
-	}
+	// 准备好初始条件（物体，初始速度）以后，开始区域计算模拟
+	sim_region := begin_sim(game_state, game_memory)
+	simulate(&sim_region)
+	render_sim_region(&sim_region, image_buffer, game_state, time_span)
+	end_sim(game_state, &sim_region, game_memory)
 
 
 }

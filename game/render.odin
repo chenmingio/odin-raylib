@@ -325,6 +325,57 @@ draw_entity_animation :: proc(
 	draw_entity_body_rectangle(dest_buffer_pos, meter_to_pixel(entity.size), buffer)
 }
 
+render_sim_region :: proc(
+	sim_region: ^SimRegion,
+	image_buffer: OffScreenBuffer,
+	game_state: ^GameState,
+	time_span: f32,
+) {
+
+	entities := sim_region.high_entities[:sim_region.high_entity_count]
+
+	for i in 0 ..< len(entities) {
+		entity := entities[i].low_entity
+		// 下面计算把worldPos（米）转换为buffer使用的坐标（pixel）
+		entity_pivot_buffer_pos := rel_pos_to_buffer_pos(
+			relative_pos(entity.pos, game_state^.camera_pos),
+			image_buffer,
+		)
+
+		// 玩家帧尺寸 or 一般实体尺寸（米→像素）
+		entity_size_px := V2i {
+			i32(meter_to_pixel(entity.size.x)),
+			i32(meter_to_pixel(entity.size.y)),
+		}
+		top_left_buffer_pos := entity_top_left_from_pivot(entity_pivot_buffer_pos, entity_size_px)
+
+		// 是否玩家
+		is_player := entity.type == EntityType.Player
+
+		switch entity.type {
+		case .Player:
+			draw_entity_animation(
+				entity_pivot_buffer_pos,
+				game_state.unit_animate,
+				entity,
+				image_buffer,
+				time_span,
+			)
+		case .Wall:
+			draw_entity_image(
+				entity_pivot_buffer_pos,
+				game_state^.rock_images[0],
+				entity,
+				image_buffer,
+			)
+		case .Tree:
+		case .Enemy:
+		case .Null:
+			break
+		}
+	}
+}
+
 @(test)
 test_image :: proc(t: ^testing.T) {
 	img, err := image.load_from_file("resources/background_pink_sky.png")
