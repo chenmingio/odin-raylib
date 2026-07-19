@@ -43,13 +43,13 @@ draw_rectangle :: proc(
 	outline: bool = false,
 ) {
 	// 输入矩形
-	rect := Rectangle {
+	rect := BufferRectangle {
 		min = top_left_pos,
 		max = top_left_pos + size_px,
 	}
 
 	// buffer 边界
-	buffer_rect := Rectangle {
+	buffer_rect := BufferRectangle {
 		min = V2i{0, 0},
 		max = V2i{buffer.width, buffer.height},
 	}
@@ -182,13 +182,13 @@ draw_image_corp :: proc(
 	reverse: bool = false,
 ) {
 	// sprite 在 buffer 上占据的矩形
-	sprite_rect := Rectangle {
+	sprite_rect := BufferRectangle {
 		min = left_top_buffer_pos,
 		max = left_top_buffer_pos + source_rect_size,
 	}
 
 	// buffer 边界
-	buffer_rect := Rectangle {
+	buffer_rect := BufferRectangle {
 		min = V2i{0, 0},
 		max = V2i{buffer.width, buffer.height},
 	}
@@ -223,8 +223,8 @@ draw_image_corp :: proc(
 }
 
 // 两个矩形求交集
-intersect_rect :: proc(a, b: Rectangle) -> (Rectangle, bool) {
-	result := Rectangle {
+intersect_rect :: proc(a, b: BufferRectangle) -> (BufferRectangle, bool) {
+	result := BufferRectangle {
 		min = V2i{max(a.min.x, b.min.x), max(a.min.y, b.min.y)},
 		max = V2i{min(a.max.x, b.max.x), min(a.max.y, b.max.y)},
 	}

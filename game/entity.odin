@@ -57,6 +57,9 @@ LowEntity :: struct {
 	anim_time:        i32, // ms
 	direction:        Direction,
 	img_pivot_offset: V2i,
+	moveable:         bool,
+	velocity:         V2,
+	acc:              V2,
 }
 
 HighEntity :: struct {

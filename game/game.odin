@@ -83,9 +83,14 @@ ScreenPos :: V2
 tileMapX :: 16
 tileMapY :: 10
 
-Rectangle :: struct {
+BufferRectangle :: struct {
 	min: V2i,
 	max: V2i,
+}
+
+Rectangle :: struct {
+	min: V2,
+	max: V2,
 }
 
 Memory :: struct {
@@ -147,14 +152,12 @@ update_and_render: UpdateAndRenderProc : proc(
 		// 初始化玩家
 		// 以米为单位
 		player := LowEntity {
-			WorldPosition{V3i{0, 0, 0}, V3{0, 0, 0}},
-			EntityType.Player,
-			V2{0.6, 0.7},
-			EntityStatus.Idle,
-			0,
-			0,
-			Direction.Forward,
-			0,
+			pos       = WorldPosition{V3i{0, 0, 0}, V3{0, 0, 0}},
+			type      = EntityType.Player,
+			size      = V2{0.6, 0.7},
+			status    = EntityStatus.Idle,
+			direction = Direction.Forward,
+			moveable  = true,
 		}
 		add_entity(game_state, player, game_memory)
 		game_state^.player = &game_state^.entities[0]
@@ -162,14 +165,10 @@ update_and_render: UpdateAndRenderProc : proc(
 		// 初始化地图
 		for i in 1 ..< 10 {
 			entity := LowEntity {
-				WorldPosition{V3i{i32(i), 0, 0}, V3{0, 0, 0}},
-				EntityType.Wall,
-				V2{wall_size, wall_size},
-				EntityStatus.Null,
-				0,
-				0,
-				Direction.Forward,
-				V2i{32, 48},
+				pos              = WorldPosition{V3i{0, 0, 0}, V3{f32(i), 0, 0}},
+				type             = EntityType.Wall,
+				size             = V2{wall_size, wall_size},
+				img_pivot_offset = V2i{32, 48},
 			}
 			add_entity(game_state, entity, game_memory)
 		}
@@ -244,7 +243,9 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	is_moving := move.x != 0 || move.y != 0 || move.z != 0
 	if (move.x != 0) {
-		game_state^.player^.direction = (move.x > 0 ? Direction.Forward : Direction.Backward)
+		// 人物左右朝向
+		game_state.player.direction = (move.x > 0 ? Direction.Forward : Direction.Backward)
+		game_state.player.velocity = V2{move.x, move.y} * player_speed
 	}
 
 	is_attacking_1 := input.controllers[0].action_left.ended_down
@@ -256,11 +257,6 @@ update_and_render: UpdateAndRenderProc : proc(
 		game_state^.player^.anim_time = 0
 	}
 	game_state^.player^.status = next_status
-
-	game_state^.player^.pos = world_pos_add(
-		game_state^.player^.pos,
-		move * player_speed * time_span,
-	)
 
 	game_state^.camera_pos = game_state^.player^.pos
 
@@ -280,7 +276,7 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	// 准备好初始条件（物体，初始速度）以后，开始区域计算模拟
 	sim_region := begin_sim(game_state, game_memory)
-	simulate(&sim_region)
+	simulate(&sim_region, time_span)
 	render_sim_region(&sim_region, image_buffer, game_state, time_span)
 	end_sim(game_state, &sim_region, game_memory)
 
