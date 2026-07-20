@@ -26,8 +26,6 @@ World :: struct {
 }
 
 chunkSideInMeters :: 10
-eps :: 0.0001
-
 // 目前使用offset坐标原点在chunk的左下角的关系。offset区间为[0, chunkSide)
 // Casey的设计，rel的原点在chunk中点
 
@@ -97,6 +95,7 @@ get_world_chunk :: proc(state: ^GameState, chunkXYZ: V3i, memory: ^Memory = nil)
 	// 如果通过链表找到符合XYZ的chunk，直接返回
 	for c := head; c != nil; c = c.next_in_hash {
 		if c.chunkXYZ == chunkXYZ {
+			assert(c.first_block != nil)
 			return c
 		}
 	}

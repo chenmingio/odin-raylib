@@ -132,7 +132,7 @@ remove_entity_index_from_hash_chunk :: proc(
 	}
 
 	// 如果first block空了，回收他
-	if first_block.entity_count == 0 {
+	if first_block.entity_count == 0 && first_block.next != nil {
 		chunk.first_block = first_block.next
 		first_block.next = nil
 		free_block := state.world.first_free_entity_block

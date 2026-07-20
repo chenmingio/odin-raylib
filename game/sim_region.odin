@@ -9,6 +9,19 @@ SimRegion :: struct {
 	high_entities:     [4096]HighEntity, // 复制数据（而不是id或者指针），方便模拟和修改
 	high_entity_count: u32,
 	space:             BufferRectangle,
+	debug_collision:   CollisionDebug,
+}
+
+// 只用于画出最近一次 sweep 命中的计算过程；所有坐标都仍在 sim 的相对世界坐标中。
+CollisionDebug :: struct {
+	valid:              bool,
+	expanded_min:       V2,
+	expanded_max:       V2,
+	relative_ray_start: V2,
+	relative_ray_end:   V2,
+	actual_path_start:  V2,
+	actual_path_end:    V2,
+	hit_point:          V2,
 }
 
 HalfPlane :: struct {
@@ -21,6 +34,8 @@ Interval :: struct {
 	max:   f32,
 	valid: bool,
 }
+
+eps :: math.F32_EPSILON
 
 // 加载相关entity到high区
 begin_sim :: proc(state: ^GameState, memory: ^Memory) -> SimRegion {
@@ -94,7 +109,6 @@ half_plane_from_ccw_points :: proc(a: V2, b: V2) -> HalfPlane {
 // 移动的向量 在平面内 => sv * t >= -s0
 // t=0时， 0 >= -s0 => 判断起点是不是在平面内
 time_span_in_half_plane :: proc(o: V2, v: V2, hp: HalfPlane) -> Interval {
-	eps: f32 = 1e-6
 	neg_inf := math.inf_f32(-1)
 	pos_inf := math.inf_f32(+1)
 
@@ -171,15 +185,40 @@ collide_convex_polygon_swept :: proc(ety_a: ^HighEntity, ety_b: ^HighEntity, tim
 }
 
 WallSide :: struct {
-	dirction:   V2,
-	axis_pos:   f32, // x or y value
-	wall_scope: V2, // wall min/max
+	dirction:     V2,
+	norm_outside: V2,
+	axis_pos:     f32, // x or y value
+	wall_scope:   V2, // wall min/max
 }
 
 HitResult :: struct {
 	hit:            bool,
+	other:          ^HighEntity,
 	surface:        V2,
 	sweep_fraction: f32,
+}
+
+record_collision_debug :: proc(
+	debug: ^CollisionDebug,
+	ety_a, ety_b: ^HighEntity,
+	dp_remaining: V2,
+	hit: HitResult,
+) {
+	c_a := high_entity_rect_center(ety_a)
+	c_b := high_entity_rect_center(ety_b)
+	half := (ety_a.low_entity.size + ety_b.low_entity.size) / 2
+	relative_ray := -dp_remaining
+
+	debug^ = CollisionDebug {
+		valid              = true,
+		expanded_min       = c_a - half,
+		expanded_max       = c_a + half,
+		relative_ray_start = c_b,
+		relative_ray_end   = c_b + relative_ray,
+		actual_path_start  = c_a,
+		actual_path_end    = c_a + dp_remaining,
+		hit_point          = c_b + relative_ray * hit.sweep_fraction,
+	}
 }
 
 
@@ -198,49 +237,57 @@ collide_minkowski_swept_AABB :: proc(
 	pos_A := c_a - c_b
 	// B是点，A是体积，以B的中心运动速度为视角,A静止不动
 	// 简化算法，other的速度为0
-	rel_velocity := 0 - ety_a.low_entity.velocity
+
+	// 使用位移dp代替速度。因为简化算法基于位移不变，而不是速度，更不是时间
+	ray := -dp_remaining
+
 	extented_A_half := (ety_a.low_entity.size + ety_b.low_entity.size) / 2
-	extented_A := Rectangle{c_a - extented_A_half, c_a + extented_A_half}
+	extented_A := Rectangle{pos_A - extented_A_half, pos_A + extented_A_half}
 	min := extented_A.min
 	max := extented_A.max
 
 	wall_sides := [4]WallSide {
-		WallSide{V2{1, 0}, min.y, V2{min.x, max.x}}, // y = min_y 水平线
-		WallSide{V2{1, 0}, max.y, V2{min.x, max.x}}, // y = max_y 水平线
-		WallSide{V2{0, 1}, min.x, V2{min.y, max.y}}, // x = min_x 垂线
-		WallSide{V2{0, 1}, max.x, V2{min.y, max.y}}, // x = max_x 垂线
+		WallSide{V2{1, 0}, V2{0, 1}, max.y, V2{min.x, max.x}}, // 上，y = max_y 水平线
+		WallSide{V2{1, 0}, V2{0, -1}, min.y, V2{min.x, max.x}}, // 下，y = min_y 水平线
+		WallSide{V2{0, 1}, V2{-1, 0}, min.x, V2{min.y, max.y}}, // 左，x = min_x 垂线
+		WallSide{V2{0, 1}, V2{1, 0}, max.x, V2{min.y, max.y}}, // 右，x = max_x 垂线
 	}
 
-	eps: f32 = 0.00001
 	// 如果没有碰撞，将使用100%的位移。碰撞则是最短的位移比例
-	result := HitResult {
+	nearest_hit := HitResult {
 		sweep_fraction = 1,
 	}
 
 	for side in wall_sides {
 		sweep_fraction: f32
 		the_other_axis_value: f32
+		surface := side.dirction
 		// y=Cy 水平线 y固定，检查x
 		if (side.dirction == V2{1, 0}) {
-			the_other_axis_value = rel_velocity.y / rel_velocity.x * side.axis_pos // x的
-			sweep_fraction = the_other_axis_value / dp_remaining.x //投影到y轴，y=Cy时碰撞
+			if math.abs(ray.y) < eps {continue} 	// 射线和wall都是水平线，不相交
+			sweep_fraction = side.axis_pos / ray.y //投影到y轴，y=Cy时碰撞
+			the_other_axis_value = ray.x * sweep_fraction // x的
 		} else {
 			// x = Cx 垂线 x固定，检查y
-			the_other_axis_value = rel_velocity.x / rel_velocity.y * side.axis_pos
-			sweep_fraction = the_other_axis_value / dp_remaining.y //投影到x轴，x=Cx时碰撞
+			if math.abs(ray.x) < eps {continue} 	// 射线和wall都是垂线，不相交
+			sweep_fraction = side.axis_pos / ray.x //投影到x轴，x=Cx时碰撞
+			the_other_axis_value = ray.y * sweep_fraction
 		}
 
-		// 运动轨迹与x/y线相交叉的位置在边的范围里
-		if the_other_axis_value >= side.wall_scope.x && the_other_axis_value <= side.wall_scope.y {
-			// 但只有最短的时间才是碰撞点。暂时不用eps，因为eps的情况应该再外面就被guard掉
-			if (sweep_fraction < result.sweep_fraction) {
-				result.hit = true
-				result.sweep_fraction = sweep_fraction
-			}
+		// 判断方向指向内部。不然贴边的时候，会被卡住无法离开。
+		if linalg.dot(ray, side.norm_outside) < 0 &&
+		   sweep_fraction >= 0 &&
+		   sweep_fraction <= 1 &&
+		   the_other_axis_value >= side.wall_scope.x &&
+		   the_other_axis_value <= side.wall_scope.y &&
+		   sweep_fraction < nearest_hit.sweep_fraction { 	//运动轨迹与x/y线相交叉的位置在边的范围里
+
+			nearest_hit.hit = true
+			nearest_hit.sweep_fraction = math.max(sweep_fraction - 0.001, 0)
+			nearest_hit.surface = surface
 		}
 	}
-
-	return result
+	return nearest_hit
 }
 
 acc_with_fiction_acc :: proc(ety: ^HighEntity) -> V2 {
@@ -255,7 +302,7 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 	// 不是很严谨（最后状态与ety loop次序有关），但是对于RPG这类游戏足够（kinematic mover）
 	for &ety in entities {
 		// 只有运动的物体才会碰撞改变位置，不需要对墙体做运动判断。
-		if ety.low_entity.moveable {
+		if ety.low_entity.moveable && linalg.length(ety.low_entity.velocity) > eps {
 			// other是不动的。即使他是个怪物，被碰撞时，也需要保持不动。
 			// 如果是怪物碰hero，可能hero被卡住了。所以可以在shouldCollide里控制。
 
@@ -275,33 +322,48 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 
 			// 如果没有碰撞运行的距离
 			// delta = v0 * dt + 0.5 * a * dt * dt
-			dp_max := ety.low_entity.velocity * dt + 0.5 * ety.low_entity.acc * dt * dt
-			dp_remaining := dp_max
+			dp_remaining: V2 = ety.low_entity.velocity * dt + 0.5 * ety.low_entity.acc * dt * dt
+			ety.low_entity.velocity = ety.low_entity.velocity + ety.low_entity.acc * dt
 
 			for n in 0 ..< 4 {
 
-				hit_result: HitResult
+				nearest_hit := HitResult {
+					sweep_fraction = 1,
+				}
 				// 先找到最近的碰撞对象，计算碰撞结果
 				for &other in entities {
 					if shouldCollide(&ety, &other) {
 						hit_result := collide_minkowski_swept_AABB(&ety, &other, dp_remaining)
 						if hit_result.hit &&
-						   (hit_result.sweep_fraction < hit_result.sweep_fraction) {
-							hit_result = hit_result
+						   (hit_result.sweep_fraction < nearest_hit.sweep_fraction) {
+							hit_result.other = &other
+							nearest_hit = hit_result
 						}
 					}
 				}
 
-				time_used: f32
-				if hit_result.hit {
-					dp := dp_remaining * (1 - hit_result.sweep_fraction)
+				if nearest_hit.hit {
+					record_collision_debug(
+						&sim_region.debug_collision,
+						&ety,
+						nearest_hit.other,
+						dp_remaining,
+						nearest_hit,
+					)
+					dp := dp_remaining * nearest_hit.sweep_fraction
 					ety.rel_pos.x += dp.x
 					ety.rel_pos.y += dp.y
 
-					dp_remaining = linalg.dot(dp, hit_result.surface)
+					dp_remaining =
+						linalg.dot(
+							dp_remaining * (1 - nearest_hit.sweep_fraction),
+							nearest_hit.surface,
+						) *
+						nearest_hit.surface
+
 					ety.low_entity.velocity = linalg.dot(
 						ety.low_entity.velocity,
-						hit_result.surface,
+						nearest_hit.surface,
 					)
 				} else {
 					// 没有碰撞

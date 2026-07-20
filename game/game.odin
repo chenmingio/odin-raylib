@@ -76,7 +76,7 @@ CorppedImage :: struct {
 }
 
 
-wall_size :: f32(0.2)
+wall_size :: f32(1)
 
 ScreenPos :: V2
 
@@ -163,7 +163,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		game_state^.player = &game_state^.entities[0]
 
 		// 初始化地图
-		for i in 1 ..< 10 {
+		for i in 2 ..< 3 {
 			entity := LowEntity {
 				pos              = WorldPosition{V3i{0, 0, 0}, V3{f32(i), 0, 0}},
 				type             = EntityType.Wall,
@@ -245,8 +245,10 @@ update_and_render: UpdateAndRenderProc : proc(
 	if (move.x != 0) {
 		// 人物左右朝向
 		game_state.player.direction = (move.x > 0 ? Direction.Forward : Direction.Backward)
-		game_state.player.velocity = V2{move.x, move.y} * player_speed
 	}
+
+	game_state.player.velocity = V2{move.x, move.y} * player_speed
+	game_state.player.acc = V2{move.x, move.y} - game_state.player.velocity * 0.2 //摩擦力方向与速度相反
 
 	is_attacking_1 := input.controllers[0].action_left.ended_down
 	is_attacking_2 := input.controllers[0].action_down.ended_down
@@ -278,6 +280,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	sim_region := begin_sim(game_state, game_memory)
 	simulate(&sim_region, time_span)
 	render_sim_region(&sim_region, image_buffer, game_state, time_span)
+	draw_collision_debug(sim_region.debug_collision, image_buffer)
 	end_sim(game_state, &sim_region, game_memory)
 
 

@@ -214,7 +214,9 @@ main :: proc() {
 
 		c := platform.get_underrun_count()
 		if c > 0 {
-			fmt.println("音频缓冲区underrun", c)
+			when ODIN_DEBUG {
+				//fmt.println("音频缓冲区underrun", c)
+			}
 		}
 
 		rl.EndDrawing()
