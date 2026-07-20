@@ -84,7 +84,8 @@
 
 - 对当前位移线段 `p(s) = p0 + dp_remaining * s`，sweep 求出的 `t_enter` / `sweep_fraction` 是首次接触的参数 `s ∈ [0, 1]`，即该线段已走距离的比例。它也可称为 normalized time of impact（TOI），但在本项目中不表示物理时间。
 - 命中后应移动 `dp_remaining * sweep_fraction`，并以 `dp_remaining * (1 - sweep_fraction)` 作为剩余位移；不要为了留缝而修改该比例，例如 `sweep_fraction - 0.001`。
-- 将回退量混入 sweep fraction 会使最近命中排序和剩余位移都不再对应真实接触点，且 `0.001` 会随世界坐标和速度尺度表现不同。
+- `sweep_fraction - 0.001` 的 `0.001` 是比例，不是世界距离：实际法线回退量约为 `length(dp_remaining) * 0.001`。速度更快或帧更长时，留缝会更大；慢速时则更小。
+- 该比例回退还会把剩余段增大 `dp_remaining * 0.001`。碰撞响应保留切线分量后，角色会额外滑动相应的切线距离；这段位移不属于真实命中点之后的运动。
 
 ### 贴边时允许退出
 
@@ -108,10 +109,10 @@ sweep AABB 解决的是“从不重叠到首次接触”，不是通用的穿透
 
 若实际观察到精确 TOI 仍偶发产生穿透，可选择：
 
-1. 保持精确 TOI，移动到接触点后仅沿法线向墙外做很小的位置修正；或
+1. 保持精确 `sweep_fraction`，移动到接触点后仅沿法线向墙外做很小的固定世界距离位置修正；或
 2. 使用 skin，并将其当作接触容差，而非真实穿透。
 
-两种方案都应将安全距离与 sweep fraction 分离，不用 `sweep_fraction - epsilon` 代替两者。
+固定距离修正的效果是：留缝恒为 `skin`，且剩余位移仍按真实的 `1 - sweep_fraction` 计算。两种方案都应将安全距离与 sweep fraction 分离，不用 `sweep_fraction - epsilon` 代替两者。
 
 ### 角点
 
