@@ -60,6 +60,8 @@ LowEntity :: struct {
 	moveable:         bool,
 	velocity:         V2,
 	acc:              V2,
+	hit_point_total:  i32,
+	hit_point_left:   i32,
 }
 
 HighEntity :: struct {

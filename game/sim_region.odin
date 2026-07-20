@@ -222,6 +222,7 @@ record_collision_debug :: proc(
 }
 
 
+// TODO 现在的回退策略不是很好。需要更好的方法解决float导致的突然卡在边缘/内部的问题。
 // 返回碰撞模拟结果，但不能直接修改entity的状态，因为要与所有可能碰撞的entity的碰撞计算选取最近的
 collide_minkowski_swept_AABB :: proc(
 	ety_a: ^HighEntity,

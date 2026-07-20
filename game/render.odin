@@ -271,7 +271,8 @@ draw_entity_image :: proc(
 	top_left_pos := dest_buffer_pos - entity.img_pivot_offset
 
 	draw_image_simple(top_left_pos, image, buffer)
-	draw_entity_body_rectangle(dest_buffer_pos, size_px, buffer)
+	when ODIN_DEBUG {draw_entity_body_rectangle(dest_buffer_pos, size_px, buffer)
+	}
 }
 
 // 假设动画图片水平排列，一共有frames帧
@@ -325,7 +326,33 @@ draw_entity_animation :: proc(
 		source_rect_pos,
 		reverse,
 	)
-	draw_entity_body_rectangle(dest_buffer_pos, meter_to_pixel(entity.size), buffer)
+
+	when ODIN_DEBUG {
+		draw_entity_body_rectangle(dest_buffer_pos, meter_to_pixel(entity.size), buffer)
+	}
+}
+
+draw_entity_hit_point :: proc(
+	pivot: V2i,
+	size: V2i,
+	buffer: OffScreenBuffer,
+	total_points: i32,
+	left_points: i32,
+) {
+	space_px :: 10
+	point_size_px :: 10
+	left_pivot_offset_x := i32(
+		(total_points - 1) / 2 * space_px + (total_points / 2) * point_size_px,
+	)
+	for i in 0 ..< total_points {
+		draw_rectangle(
+			pivot + V2i{-left_pivot_offset_x + i * (point_size_px + space_px), -size.y - space_px},
+			point_size_px,
+			RED,
+			buffer,
+			!(i < left_points),
+		)
+	}
 }
 
 render_sim_region :: proc(
@@ -363,6 +390,13 @@ render_sim_region :: proc(
 				entity,
 				image_buffer,
 				time_span,
+			)
+			draw_entity_hit_point(
+				entity_pivot_buffer_pos,
+				entity_size_px,
+				image_buffer,
+				entity.hit_point_total,
+				entity.hit_point_left,
 			)
 		case .Wall:
 			draw_entity_image(

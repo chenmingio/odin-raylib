@@ -76,7 +76,7 @@ CorppedImage :: struct {
 }
 
 
-wall_size :: f32(1)
+wall_size :: f32(0.3)
 
 ScreenPos :: V2
 
@@ -152,18 +152,20 @@ update_and_render: UpdateAndRenderProc : proc(
 		// 初始化玩家
 		// 以米为单位
 		player := LowEntity {
-			pos       = WorldPosition{V3i{0, 0, 0}, V3{0, 0, 0}},
-			type      = EntityType.Player,
-			size      = V2{0.6, 0.7},
-			status    = EntityStatus.Idle,
-			direction = Direction.Forward,
-			moveable  = true,
+			pos             = WorldPosition{V3i{0, 0, 0}, V3{0, 0, 0}},
+			type            = EntityType.Player,
+			size            = V2{0.6, 0.7},
+			status          = EntityStatus.Idle,
+			direction       = Direction.Forward,
+			moveable        = true,
+			hit_point_total = 3,
+			hit_point_left  = 1,
 		}
 		add_entity(game_state, player, game_memory)
 		game_state^.player = &game_state^.entities[0]
 
 		// 初始化地图
-		for i in 2 ..< 3 {
+		for i in 1 ..< 7 {
 			entity := LowEntity {
 				pos              = WorldPosition{V3i{0, 0, 0}, V3{f32(i), 0, 0}},
 				type             = EntityType.Wall,
@@ -247,7 +249,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		game_state.player.direction = (move.x > 0 ? Direction.Forward : Direction.Backward)
 	}
 
-	game_state.player.velocity = V2{move.x, move.y} * player_speed
+	game_state.player.velocity = linalg.normalize(V2{move.x, move.y}) * player_speed
 	game_state.player.acc = V2{move.x, move.y} - game_state.player.velocity * 0.2 //摩擦力方向与速度相反
 
 	is_attacking_1 := input.controllers[0].action_left.ended_down
@@ -263,16 +265,18 @@ update_and_render: UpdateAndRenderProc : proc(
 	game_state^.camera_pos = game_state^.player^.pos
 
 	// debug坐标轴
-	draw_line_x(image_buffer.height / 2, image_buffer)
-	draw_line_y(image_buffer.width / 2, image_buffer)
+	when ODIN_DEBUG {
+		draw_line_x(image_buffer.height / 2, image_buffer)
+		draw_line_y(image_buffer.width / 2, image_buffer)
 
-	// debug chunk原点
-	for x in -10 ..< 10 {
-		for y in -10 ..< 10 {
-			chunkPivot := WorldPosition{V3i{i32(x), i32(y), 0}, 0}
-			rel_pos := relative_pos(chunkPivot, game_state^.camera_pos)
-			buffer_pos := rel_pos_to_buffer_pos(rel_pos, image_buffer)
-			draw_dot(buffer_pos, image_buffer)
+		// debug chunk原点
+		for x in -10 ..< 10 {
+			for y in -10 ..< 10 {
+				chunkPivot := WorldPosition{V3i{i32(x), i32(y), 0}, 0}
+				rel_pos := relative_pos(chunkPivot, game_state^.camera_pos)
+				buffer_pos := rel_pos_to_buffer_pos(rel_pos, image_buffer)
+				draw_dot(buffer_pos, image_buffer)
+			}
 		}
 	}
 
@@ -280,7 +284,9 @@ update_and_render: UpdateAndRenderProc : proc(
 	sim_region := begin_sim(game_state, game_memory)
 	simulate(&sim_region, time_span)
 	render_sim_region(&sim_region, image_buffer, game_state, time_span)
-	draw_collision_debug(sim_region.debug_collision, image_buffer)
+	when ODIN_DEBUG {
+		draw_collision_debug(sim_region.debug_collision, image_buffer)
+	}
 	end_sim(game_state, &sim_region, game_memory)
 
 
