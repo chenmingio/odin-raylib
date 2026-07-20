@@ -80,11 +80,11 @@
 
 ## 4. 接触、浮点误差与初始重叠
 
-### 保持碰撞时间（TOI）精确
+### 保持 sweep fraction 精确
 
-- sweep 求出的 `t_enter` / `sweep_fraction` 是本帧首次接触的时间（time of impact, TOI）。
-- 命中后应移动 `dp * toi`，并以 `dp * (1 - toi)` 作为剩余位移；不要为了留缝而修改 TOI，例如 `toi - 0.001`。
-- 将回退量混入 TOI 会使最近命中排序和剩余位移都不再对应真实接触时刻，且 `0.001` 会随世界坐标和速度尺度表现不同。
+- 对当前位移线段 `p(s) = p0 + dp_remaining * s`，sweep 求出的 `t_enter` / `sweep_fraction` 是首次接触的参数 `s ∈ [0, 1]`，即该线段已走距离的比例。它也可称为 normalized time of impact（TOI），但在本项目中不表示物理时间。
+- 命中后应移动 `dp_remaining * sweep_fraction`，并以 `dp_remaining * (1 - sweep_fraction)` 作为剩余位移；不要为了留缝而修改该比例，例如 `sweep_fraction - 0.001`。
+- 将回退量混入 sweep fraction 会使最近命中排序和剩余位移都不再对应真实接触点，且 `0.001` 会随世界坐标和速度尺度表现不同。
 
 ### 贴边时允许退出
 
@@ -111,7 +111,7 @@ sweep AABB 解决的是“从不重叠到首次接触”，不是通用的穿透
 1. 保持精确 TOI，移动到接触点后仅沿法线向墙外做很小的位置修正；或
 2. 使用 skin，并将其当作接触容差，而非真实穿透。
 
-两种方案都应将安全距离与 TOI 分离，不用 `toi - epsilon` 代替两者。
+两种方案都应将安全距离与 sweep fraction 分离，不用 `sweep_fraction - epsilon` 代替两者。
 
 ### 角点
 
@@ -146,7 +146,7 @@ sweep AABB 解决的是“从不重叠到首次接触”，不是通用的穿透
 ## 7. 代码流程
 
 1. 用Minkowski和化约为：A的中心点 vs 扩大后的B（B ⊕ A的形状）
-2. 用逐边检验法或区间交集法计算精确碰撞时间 TOI 和法线
+2. 用逐边检验法或区间交集法计算精确 `sweep_fraction` 和法线
 3. 移动到精确碰撞点；仅移除法线向内的运动，保留离墙和切向运动
 4. 用剩余时间迭代检测下一次碰撞
 
