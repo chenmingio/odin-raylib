@@ -18,6 +18,7 @@ EntityStatus :: enum {
 	Attack_1,
 	Attack_2,
 	Guard,
+	Throw,
 }
 
 Direction :: enum {
@@ -33,6 +34,7 @@ status_names := [EntityStatus]string {
 	.Attack_1 = "Attack 1",
 	.Attack_2 = "Attack 2",
 	.Guard    = "Guard",
+	.Throw    = "Throw",
 }
 
 entity_status_to_name :: proc(s: EntityStatus) -> string {
