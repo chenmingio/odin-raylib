@@ -303,7 +303,7 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 	// 不是很严谨（最后状态与ety loop次序有关），但是对于RPG这类游戏足够（kinematic mover）
 	for &ety in entities {
 		// 只有运动的物体才会碰撞改变位置，不需要对墙体做运动判断。
-		if ety.low_entity.moveable && linalg.length(ety.low_entity.velocity) > eps {
+		if ety.low_entity.moveable {
 			// other是不动的。即使他是个怪物，被碰撞时，也需要保持不动。
 			// 如果是怪物碰hero，可能hero被卡住了。所以可以在shouldCollide里控制。
 

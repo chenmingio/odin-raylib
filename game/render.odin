@@ -407,6 +407,13 @@ render_sim_region :: proc(
 			)
 		case .Tree:
 		case .Enemy:
+			draw_entity_animation(
+				entity_pivot_buffer_pos,
+				game_state.harpoon_shark_animate,
+				entity,
+				image_buffer,
+				time_span,
+			)
 		case .Null:
 			break
 		}

@@ -4,6 +4,7 @@ import "core:encoding/json" // 必须保留！用于注册 PNG 加载器
 import "core:fmt"
 import "core:image"
 import "core:image/png"
+import "core:math"
 import "core:math/linalg"
 import "core:math/rand"
 import "core:mem"
@@ -57,16 +58,18 @@ next_status :: proc(
 
 
 GameState :: struct {
-	camera_pos:   WorldPosition,
-	player:       ^LowEntity,
-	entities:     [10000]LowEntity,
-	entity_count: u32,
-	background:   ^image.Image,
-	unit_animate: Animation,
-	tilemap1:     ^image.Image,
-	game_map:     [tileMapY][tileMapX]V2i,
-	rock_images:  [4]^image.Image,
-	world:        World,
+	camera_pos:            WorldPosition,
+	player:                ^LowEntity,
+	shark:                 ^LowEntity,
+	entities:              [10000]LowEntity,
+	entity_count:          u32,
+	background:            ^image.Image,
+	unit_animate:          Animation,
+	harpoon_shark_animate: Animation,
+	tilemap1:              ^image.Image,
+	game_map:              [tileMapY][tileMapX]V2i,
+	rock_images:           [4]^image.Image,
+	world:                 World,
 }
 
 CorppedImage :: struct {
@@ -124,28 +127,28 @@ update_and_render: UpdateAndRenderProc : proc(
 	if !game_memory.is_initialized {
 		// 初始化工作
 		// 设置初始相机位置
-		game_state^.camera_pos = WorldPosition{V3i{}, V3{}}
+		game_state.camera_pos = WorldPosition{V3i{}, V3{}}
 		// 地图
 		for y in 0 ..< tileMapY {
 			for x in 0 ..< tileMapX {
 				if (x == 0 && y == 0) {
-					game_state^.game_map[y][x] = V2i{0, 0}
+					game_state.game_map[y][x] = V2i{0, 0}
 				} else if (x == tileMapX - 1 && y == 0) {
-					game_state^.game_map[y][x] = V2i{2, 0}
+					game_state.game_map[y][x] = V2i{2, 0}
 				} else if (x == 0 && y == tileMapY - 1) {
-					game_state^.game_map[y][x] = V2i{0, 2}
+					game_state.game_map[y][x] = V2i{0, 2}
 				} else if (x == tileMapX - 1 && y == tileMapY - 1) {
-					game_state^.game_map[y][x] = V2i{2, 2}
+					game_state.game_map[y][x] = V2i{2, 2}
 				} else if (x == 0) {
-					game_state^.game_map[y][x] = V2i{0, 1}
+					game_state.game_map[y][x] = V2i{0, 1}
 				} else if (x == tileMapX - 1) {
-					game_state^.game_map[y][x] = V2i{2, 1}
+					game_state.game_map[y][x] = V2i{2, 1}
 				} else if (y == 0) {
-					game_state^.game_map[y][x] = V2i{1, 0}
+					game_state.game_map[y][x] = V2i{1, 0}
 				} else if (y == tileMapY - 1) {
-					game_state^.game_map[y][x] = V2i{1, 2}
+					game_state.game_map[y][x] = V2i{1, 2}
 				} else {
-					game_state^.game_map[y][x] = V2i{1, 1}
+					game_state.game_map[y][x] = V2i{1, 1}
 				}
 			}
 		}
@@ -162,7 +165,21 @@ update_and_render: UpdateAndRenderProc : proc(
 			hit_point_left  = 1,
 		}
 		add_entity(game_state, player, game_memory)
-		game_state^.player = &game_state^.entities[0]
+		game_state.player = &game_state.entities[0]
+
+		//一个敌人
+		shark := LowEntity {
+			pos             = WorldPosition{V3i{0, 0, 0}, V3{-2, -2, 0}},
+			type            = EntityType.Enemy,
+			size            = V2{0.5, 0.6},
+			status          = EntityStatus.Idle,
+			direction       = Direction.Forward,
+			moveable        = true,
+			hit_point_total = 3,
+			hit_point_left  = 3,
+		}
+		add_entity(game_state, shark, game_memory)
+		game_state.shark = &game_state.entities[1]
 
 		// 初始化地图
 		for i in 1 ..< 7 {
@@ -182,7 +199,7 @@ update_and_render: UpdateAndRenderProc : proc(
 				game_memory.temp_alloc,
 			)
 			assert(err_load_rock == nil)
-			game_state^.rock_images[i] = rock
+			game_state.rock_images[i] = rock
 		}
 
 		// 加载asset
@@ -193,28 +210,25 @@ update_and_render: UpdateAndRenderProc : proc(
 			game_memory.temp_alloc, // 使用主程序传入的临时分配器
 		)
 		assert(err_load_tilemap1 == nil)
-		game_state^.tilemap1 = tilemap1
+		game_state.tilemap1 = tilemap1
 
 		// 载入单位动画
-		unit_img, err_load_unit_img := image.load_from_file(
+		game_state.unit_animate = load_animate_assets(
+			game_memory,
+			game_state,
 			"resources/Units/Warrior.png",
-			{},
-			game_memory.temp_alloc,
-		)
-		assert(err_load_unit_img == nil)
-		unit_json, json_err := os.read_entire_file(
 			"resources/Units/Warrior.json",
-			game_memory.temp_alloc,
-		)
-		assert(json_err == nil)
-		unit_animate := AseSpriteSheet{}
-		parse_err := json.unmarshal(unit_json, &unit_animate)
-		assert(parse_err == nil)
-		game_state^.unit_animate = animation_from_ase_sprite_sheet(
-			unit_animate,
-			unit_img,
-			V2i{95, 130},
 			"Warrior",
+			V2i{95, 130},
+		)
+
+		game_state.harpoon_shark_animate = load_animate_assets(
+			game_memory,
+			game_state,
+			"resources/Enemies/Harpoon Shark.png",
+			"resources/Enemies/Harpoon Shark.json",
+			"Harpoon Shark",
+			V2i{95, 130},
 		)
 
 
@@ -240,8 +254,8 @@ update_and_render: UpdateAndRenderProc : proc(
 		move += V3{1, 0, 0}
 	}
 
-	// 运动模拟
-	player_speed :: 3.0
+	// player 运动模拟
+	player_rfd :: 10.0 //深蹲重量/体重
 
 	is_moving := move.x != 0 || move.y != 0 || move.z != 0
 	if (move.x != 0) {
@@ -249,20 +263,32 @@ update_and_render: UpdateAndRenderProc : proc(
 		game_state.player.direction = (move.x > 0 ? Direction.Forward : Direction.Backward)
 	}
 
-	game_state.player.velocity = linalg.normalize(V2{move.x, move.y}) * player_speed
-	game_state.player.acc = V2{move.x, move.y} - game_state.player.velocity * 0.2 //摩擦力方向与速度相反
+	//game_state.player.velocity = linalg.normalize(V2{move.x, move.y}) * player_speed
+	game_state.player.acc = move.xy * player_rfd - game_state.player.velocity * 5 //摩擦力方向与速度相反
 
 	is_attacking_1 := input.controllers[0].action_left.ended_down
 	is_attacking_2 := input.controllers[0].action_down.ended_down
 	next_status := next_status(is_moving, is_attacking_1, is_attacking_2)
-	if (game_state^.player^.status != EntityStatus.Null &&
-		   game_state^.player^.status != next_status) {
-		game_state^.player^.anim_frame_idx = 0
-		game_state^.player^.anim_time = 0
+	if (game_state.player.status != EntityStatus.Null && game_state.player.status != next_status) {
+		game_state.player.anim_frame_idx = 0
+		game_state.player.anim_time = 0
 	}
-	game_state^.player^.status = next_status
+	game_state.player.status = next_status
 
-	game_state^.camera_pos = game_state^.player^.pos
+	// shark运动输入
+	shark_rfd :: 5
+	distance_to_player := relative_pos(game_state.player.pos, game_state.shark.pos)
+	if linalg.length(distance_to_player) < 2 {
+		game_state.shark.acc =
+			linalg.normalize(distance_to_player.xy) * shark_rfd - game_state.shark.velocity * 5
+	} else if linalg.length(distance_to_player) > 2 {
+		game_state.shark.acc = -game_state.shark.velocity * 5
+	} else {
+
+	}
+
+	// camera追随player
+	game_state.camera_pos = game_state.player.pos
 
 	// debug坐标轴
 	when ODIN_DEBUG {
@@ -273,7 +299,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		for x in -10 ..< 10 {
 			for y in -10 ..< 10 {
 				chunkPivot := WorldPosition{V3i{i32(x), i32(y), 0}, 0}
-				rel_pos := relative_pos(chunkPivot, game_state^.camera_pos)
+				rel_pos := relative_pos(chunkPivot, game_state.camera_pos)
 				buffer_pos := rel_pos_to_buffer_pos(rel_pos, image_buffer)
 				draw_dot(buffer_pos, image_buffer)
 			}
