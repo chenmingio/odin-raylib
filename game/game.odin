@@ -281,11 +281,15 @@ update_and_render: UpdateAndRenderProc : proc(
 	if linalg.length(distance_to_player) < 2 {
 		game_state.shark.acc =
 			linalg.normalize(distance_to_player.xy) * shark_rfd - game_state.shark.velocity * 5
-	} else if linalg.length(distance_to_player) > 2 {
-		game_state.shark.acc = -game_state.shark.velocity * 5
 	} else {
-
+		game_state.shark.acc = -game_state.shark.velocity * 5
 	}
+		shark_next_status := math.abs(linalg.length(game_state.shark.velocity)) > 0.01 ? EntityStatus.Run : EntityStatus.Idle
+		if game_state.shark.status != EntityStatus.Null && game_state.shark.status != shark_next_status {
+			game_state.shark.anim_frame_idx = 0
+			game_state.shark.anim_time = 0
+		}
+		game_state.shark.status = shark_next_status
 
 	// camera追随player
 	game_state.camera_pos = game_state.player.pos
