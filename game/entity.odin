@@ -12,7 +12,6 @@ EntityType :: enum {
 }
 
 EntityStatus :: enum {
-	Null,
 	Idle,
 	Walk,
 	Run,
@@ -20,7 +19,6 @@ EntityStatus :: enum {
 	Attack_2,
 	Guard,
 	Throw,
-	Harpoon,
 }
 
 Direction :: enum {
@@ -29,7 +27,6 @@ Direction :: enum {
 }
 
 status_names := [EntityStatus]string {
-	.Null     = "Null",
 	.Idle     = "Idle",
 	.Walk     = "Walk",
 	.Run      = "Run",
@@ -37,20 +34,19 @@ status_names := [EntityStatus]string {
 	.Attack_2 = "Attack 2",
 	.Guard    = "Guard",
 	.Throw    = "Throw",
-	.Harpoon  = "Harpoon",
 }
 
 entity_status_to_name :: proc(s: EntityStatus) -> string {
 	return status_names[s]
 }
 
-name_to_entity_status :: proc(name: string) -> EntityStatus {
+name_to_entity_status :: proc(name: string) -> (EntityStatus, bool) {
 	for s in EntityStatus {
 		if status_names[s] == name {
-			return s
+			return s, true
 		}
 	}
-	return .Null
+	return EntityStatus.Idle, false
 }
 
 LowEntity :: struct {
@@ -61,7 +57,6 @@ LowEntity :: struct {
 	anim_frame_idx:       i32,
 	anim_time:            i32, // ms,当前frame花了多少时间，在切换frame以后清零
 	direction:            Direction,
-	img_pivot_offset:     V2i,
 	moveable:             bool,
 	velocity:             V2,
 	acc:                  V2,

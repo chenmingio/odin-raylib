@@ -58,18 +58,21 @@ next_status :: proc(
 
 
 GameState :: struct {
-	camera_pos:           WorldPosition,
-	player:               ^LowEntity,
-	shark:                ^LowEntity,
-	entities:             [10000]LowEntity,
-	entity_count:         u32,
-	background:           ^image.Image,
-	unit_animate:         Animation,
-	harpoon_shark_assets: Animation,
-	tilemap1:             ^image.Image,
-	game_map:             [tileMapY][tileMapX]V2i,
-	rock_images:          [4]^image.Image,
-	world:                World,
+	camera_pos:              WorldPosition,
+	player:                  ^LowEntity,
+	shark:                   ^LowEntity,
+	entities:                [10000]LowEntity,
+	entity_count:            u32,
+	background:              ^image.Image,
+	unit_animate_assets:     AseSpriteAsset,
+	unit_animate:            Animation,
+	harpoon_shark_assets:    AseSpriteAsset, // asset package parsed
+	harpoon_shark_animation: Animation, // animation and config
+	harpoon_sprite:          Sprite, // image and config
+	tilemap1:                ^image.Image,
+	game_map:                [tileMapY][tileMapX]V2i,
+	rock_images:             [4]^image.Image,
+	world:                   World,
 }
 
 CorppedImage :: struct {
@@ -184,10 +187,9 @@ update_and_render: UpdateAndRenderProc : proc(
 		// 初始化地图
 		for i in 1 ..< 7 {
 			entity := LowEntity {
-				pos              = WorldPosition{V3i{0, 0, 0}, V3{f32(i), 0, 0}},
-				type             = EntityType.Wall,
-				size             = V2{wall_size, wall_size},
-				img_pivot_offset = V2i{32, 48},
+				pos  = WorldPosition{V3i{0, 0, 0}, V3{f32(i), 0, 0}},
+				type = EntityType.Wall,
+				size = V2{wall_size, wall_size},
 			}
 			add_entity(game_state, entity, game_memory)
 		}
@@ -213,22 +215,35 @@ update_and_render: UpdateAndRenderProc : proc(
 		game_state.tilemap1 = tilemap1
 
 		// 载入单位动画
-		game_state.unit_animate = load_animate_assets(
+		game_state.unit_animate_assets = load_aseprite_assets(
 			game_memory,
 			game_state,
 			"resources/Units/Warrior.png",
 			"resources/Units/Warrior.json",
+		)
+		game_state.unit_animate = animation_from_assets(
+			game_state.unit_animate_assets,
 			"Warrior",
 			V2i{95, 130},
 		)
 
-		game_state.harpoon_shark_assets = load_animate_assets(
+		game_state.harpoon_shark_assets = load_aseprite_assets(
 			game_memory,
 			game_state,
 			"resources/Enemies/Harpoon Shark.png",
 			"resources/Enemies/Harpoon Shark.json",
+		)
+
+		game_state.harpoon_shark_animation = animation_from_assets(
+			game_state.harpoon_shark_assets,
 			"Harpoon Shark",
 			V2i{95, 130},
+		)
+
+		game_state.harpoon_sprite = sprite_from_assets(
+			game_state.harpoon_shark_assets,
+			"Harpoon Shark #Harpoon.aseprite",
+			V2i{95, 130} + V2i{25, -45},
 		)
 
 
@@ -269,7 +284,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	is_attacking_1 := input.controllers[0].action_left.ended_down
 	is_attacking_2 := input.controllers[0].action_down.ended_down
 	next_status := next_status(is_moving, is_attacking_1, is_attacking_2)
-	if (game_state.player.status != EntityStatus.Null && game_state.player.status != next_status) {
+	if (game_state.player.status != nil && game_state.player.status != next_status) {
 		game_state.player.anim_frame_idx = 0
 		game_state.player.anim_time = 0
 	}
@@ -280,7 +295,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	distance_to_player := relative_pos(game_state.player.pos, game_state.shark.pos)
 	shark_next_status :=
 		math.abs(linalg.length(game_state.shark.velocity)) > 0.01 ? EntityStatus.Run : EntityStatus.Idle
-	if linalg.length(distance_to_player) < 2 {
+	if linalg.length(distance_to_player) < 5 {
 		//game_state.shark.acc = linalg.normalize(distance_to_player.xy) * shark_rfd - game_state.shark.velocity * 5
 		shark_next_status = EntityStatus.Throw
 		game_state.shark.direction =
@@ -288,20 +303,19 @@ update_and_render: UpdateAndRenderProc : proc(
 	} else {
 		game_state.shark.acc = -game_state.shark.velocity * 5
 	}
-	if game_state.shark.status != EntityStatus.Null &&
-	   game_state.shark.status != shark_next_status {
+	if game_state.shark.status != nil && game_state.shark.status != shark_next_status {
 		game_state.shark.anim_frame_idx = 0
 		game_state.shark.anim_time = 0
 	}
 	game_state.shark.status = shark_next_status
 
 	if game_state.shark.status == EntityStatus.Throw &&
-	   game_state.shark.anim_frame_idx == 3 &&
+	   game_state.shark.anim_frame_idx == 4 &&
 	   game_state.shark.shark_harpoon_thrown == false {
 		harpoon := LowEntity {
-			pos      = game_state.shark.pos,
+			pos      = world_pos_add(game_state.shark.pos, V3{0, 0.4, 0}),
 			type     = EntityType.Weapon,
-			size     = V2{1, 0.2},
+			size     = V2{0.2, 0.2},
 			moveable = true,
 			velocity = distance_to_player.xy,
 			acc      = V2{0, -1},

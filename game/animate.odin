@@ -53,39 +53,50 @@ Animation :: struct {
 	pivot_in_source: V2i,
 }
 
-// 提取frames的key（例如 Warrior #Attach 1 2.aseprite）里的index 2
-get_frame_index_from_key :: proc(key: string) -> (int, bool) {
-	parts := strings.split(key, " ")
-	if len(parts) == 0 {
-		return 0, false
-	}
-
-	last := parts[len(parts) - 1] // e.g. "14.aseprite"
-	if !strings.has_suffix(last, ".aseprite") {
-		return 0, false
-	}
-
-	num_str := last[:len(last) - len(".aseprite")] // "14"
-	return strconv.parse_int(num_str, 10)
-}
-
-animation_from_ase_sprite_sheet :: proc(
+AseSpriteAsset :: struct {
 	sheet: AseSpriteSheet,
 	image: ^image.Image,
-	pivot_in_source: V2i,
+}
+
+Sprite :: struct {
+	image:          ^image.Image,
+	frame_size:     V2i, // image里多大的一块
+	frame_pos:      V2i, // sprite距离image左上角的距离
+	pivot_in_frame: V2i,
+}
+
+sprite_from_assets :: proc(assets: AseSpriteAsset, key: string, pivot_in_source: V2i) -> Sprite {
+	anim_frame, ok := assets.sheet.frames[key]
+	assert(ok, "frame not found")
+
+	source_rect_size := V2i{anim_frame.frame.w, anim_frame.frame.h}
+	source_rect_pos := V2i{anim_frame.frame.x, anim_frame.frame.y}
+	trim_offset_in_source := V2i{anim_frame.spriteSourceSize.x, anim_frame.spriteSourceSize.y}
+	return Sprite {
+		assets.image,
+		source_rect_size,
+		source_rect_pos,
+		pivot_in_source - trim_offset_in_source,
+	}
+}
+
+animation_from_assets :: proc(
+	assets: AseSpriteAsset,
 	prefix: string,
+	pivot_in_source: V2i,
 ) -> Animation {
 	result: Animation
-	result.image = image
+	result.image = assets.image
 	result.pivot_in_source = pivot_in_source
 
-	for tag in sheet.meta.frameTags {
-		status := name_to_entity_status(tag.name)
+	for tag in assets.sheet.meta.frameTags {
+		status, ok := name_to_entity_status(tag.name)
+		if !ok {continue}
 		clip := &result.clips[status]
 
 		for i in 0 ..= (tag.to - tag.from) {
 			key := fmt.tprintf("%s #%s %d.aseprite", prefix, tag.name, i)
-			anim_frame, ok := sheet.frames[key]
+			anim_frame, ok := assets.sheet.frames[key]
 			assert(ok, "frame not found")
 
 			n, err := append(&clip.frames, anim_frame)

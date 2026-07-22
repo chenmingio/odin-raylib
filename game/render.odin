@@ -266,9 +266,10 @@ draw_entity_image :: proc(
 	image: ^image.Image,
 	entity: ^LowEntity,
 	buffer: OffScreenBuffer,
+	pivot_offset: V2i,
 ) {
 	size_px := meter_to_pixel(entity.size)
-	top_left_pos := dest_buffer_pos - entity.img_pivot_offset
+	top_left_pos := dest_buffer_pos - pivot_offset
 
 	draw_image_simple(top_left_pos, image, buffer)
 	when ODIN_DEBUG {draw_entity_body_rectangle(dest_buffer_pos, size_px, buffer)
@@ -334,56 +335,19 @@ draw_entity_animation :: proc(
 	}
 }
 
-draw_harpoon_animate :: proc(
+// 我们可以把武器也认为是动画frame的一部分，只不过只有1帧（未来可能有多帧）
+// 武器需要处理1.旋转角度 2.pivot在哪里
+// 根据entity的v来计算旋转角度
+//
+draw_sprite :: proc(
 	dest_buffer_pos: V2i,
-	animation: Animation,
+	sprite: Sprite,
 	entity: ^LowEntity,
 	buffer: OffScreenBuffer,
 	dt: f32,
 ) {
-	image := animation.image
-	status := entity.status
-	reverse := entity.direction == Direction.Backward
-
-	// in pixel
-	clip_frames := animation.clips[EntityStatus.Harpoon].frames
-	assert(len(clip_frames) > 0)
-
-	entity.anim_time += i32(dt * 1000)
-	for entity.anim_time >= clip_frames[entity.anim_frame_idx].duration {
-		entity.anim_time -= clip_frames[entity.anim_frame_idx].duration
-		entity.anim_frame_idx = (entity.anim_frame_idx + 1) % i32(len(clip_frames))
-	}
-
-	anim_frame := clip_frames[entity.anim_frame_idx]
-	source_rect_size := V2i{anim_frame.frame.w, anim_frame.frame.h}
-	source_rect_pos := V2i{anim_frame.frame.x, anim_frame.frame.y}
-
-	trim_offset_in_source := V2i{anim_frame.spriteSourceSize.x, anim_frame.spriteSourceSize.y}
-
-	pivot_in_source := animation.pivot_in_source
-	offset_from_pivot_to_dest := trim_offset_in_source - pivot_in_source
-	// reverse通过画图可以发现，是pivot到dest点翻转再减去frame上边框向量构成的新的向量
-	if reverse {
-		offset_from_pivot_to_dest =
-			offset_from_pivot_to_dest * V2i{-1, 1} - V2i{source_rect_size.x, 0}
-	}
-
-	// 逻辑：把原始 source frame 里的固定 pivot 对齐到实体 pivot，再画 trimmed sprite。
-	// entity_pivot_buffer_pos 基础位置，从哪里开始画，此时sprite的左上角在目标点
-	// trim_offset_in_source 从trimmed sprite还原为source frame的左上角
-	// pivot_in_source 从source frame左上角到固定pivot点（约定为画面上的人物重心）
-	// 向量的方向根据xy的正负和buffer pos的正负方向来确定箭头方向。
-	sprite_dest_top_left := dest_buffer_pos + offset_from_pivot_to_dest
-
-	draw_image_corp(
-		sprite_dest_top_left,
-		image,
-		buffer,
-		source_rect_size,
-		source_rect_pos,
-		reverse,
-	)
+	top_left_pos := dest_buffer_pos - sprite.pivot_in_frame
+	draw_image_corp(top_left_pos, sprite.image, buffer, sprite.frame_size, sprite.frame_pos, false)
 
 	when ODIN_DEBUG {
 		draw_entity_body_rectangle(dest_buffer_pos, meter_to_pixel(entity.size), buffer)
@@ -464,20 +428,21 @@ render_sim_region :: proc(
 				game_state^.rock_images[0],
 				entity,
 				image_buffer,
+				V2i{32, 48},
 			)
 		case .Tree:
 		case .Enemy:
 			draw_entity_animation(
 				entity_pivot_buffer_pos,
-				game_state.harpoon_shark_assets,
+				game_state.harpoon_shark_animation,
 				entity,
 				image_buffer,
 				time_span,
 			)
 		case .Weapon:
-			draw_harpoon_animate(
+			draw_sprite(
 				entity_pivot_buffer_pos,
-				game_state.harpoon_shark_assets,
+				game_state.harpoon_sprite,
 				entity,
 				image_buffer,
 				time_span,
