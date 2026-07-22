@@ -276,6 +276,8 @@ draw_entity_image :: proc(
 }
 
 // 假设动画图片水平排列，一共有frames帧
+// 根据entity的status来找到对应行
+// 根据entity的anim_time/anim_frame_idx来判断画哪一帧
 draw_entity_animation :: proc(
 	dest_buffer_pos: V2i,
 	animation: Animation,
@@ -289,6 +291,62 @@ draw_entity_animation :: proc(
 
 	// in pixel
 	clip_frames := animation.clips[status].frames
+	assert(len(clip_frames) > 0)
+
+	for entity.anim_time >= clip_frames[entity.anim_frame_idx].duration {
+		entity.anim_time -= clip_frames[entity.anim_frame_idx].duration
+		entity.anim_frame_idx = (entity.anim_frame_idx + 1) % i32(len(clip_frames))
+	}
+	entity.anim_time += i32(dt * 1000)
+
+	anim_frame := clip_frames[entity.anim_frame_idx]
+	source_rect_size := V2i{anim_frame.frame.w, anim_frame.frame.h}
+	source_rect_pos := V2i{anim_frame.frame.x, anim_frame.frame.y}
+
+	trim_offset_in_source := V2i{anim_frame.spriteSourceSize.x, anim_frame.spriteSourceSize.y}
+
+	pivot_in_source := animation.pivot_in_source
+	offset_from_pivot_to_dest := trim_offset_in_source - pivot_in_source
+	// reverse通过画图可以发现，是pivot到dest点翻转再减去frame上边框向量构成的新的向量
+	if reverse {
+		offset_from_pivot_to_dest =
+			offset_from_pivot_to_dest * V2i{-1, 1} - V2i{source_rect_size.x, 0}
+	}
+
+	// 逻辑：把原始 source frame 里的固定 pivot 对齐到实体 pivot，再画 trimmed sprite。
+	// entity_pivot_buffer_pos 基础位置，从哪里开始画，此时sprite的左上角在目标点
+	// trim_offset_in_source 从trimmed sprite还原为source frame的左上角
+	// pivot_in_source 从source frame左上角到固定pivot点（约定为画面上的人物重心）
+	// 向量的方向根据xy的正负和buffer pos的正负方向来确定箭头方向。
+	sprite_dest_top_left := dest_buffer_pos + offset_from_pivot_to_dest
+
+	draw_image_corp(
+		sprite_dest_top_left,
+		image,
+		buffer,
+		source_rect_size,
+		source_rect_pos,
+		reverse,
+	)
+
+	when ODIN_DEBUG {
+		draw_entity_body_rectangle(dest_buffer_pos, meter_to_pixel(entity.size), buffer)
+	}
+}
+
+draw_harpoon_animate :: proc(
+	dest_buffer_pos: V2i,
+	animation: Animation,
+	entity: ^LowEntity,
+	buffer: OffScreenBuffer,
+	dt: f32,
+) {
+	image := animation.image
+	status := entity.status
+	reverse := entity.direction == Direction.Backward
+
+	// in pixel
+	clip_frames := animation.clips[EntityStatus.Harpoon].frames
 	assert(len(clip_frames) > 0)
 
 	entity.anim_time += i32(dt * 1000)
@@ -382,6 +440,8 @@ render_sim_region :: proc(
 		// 是否玩家
 		is_player := entity.type == EntityType.Player
 
+		status := entity.status
+
 		switch entity.type {
 		case .Player:
 			draw_entity_animation(
@@ -409,7 +469,15 @@ render_sim_region :: proc(
 		case .Enemy:
 			draw_entity_animation(
 				entity_pivot_buffer_pos,
-				game_state.harpoon_shark_animate,
+				game_state.harpoon_shark_assets,
+				entity,
+				image_buffer,
+				time_span,
+			)
+		case .Weapon:
+			draw_harpoon_animate(
+				entity_pivot_buffer_pos,
+				game_state.harpoon_shark_assets,
 				entity,
 				image_buffer,
 				time_span,

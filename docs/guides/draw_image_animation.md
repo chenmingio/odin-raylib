@@ -699,7 +699,9 @@ anim_frame := clip_frames[entity.anim_frame_idx]
 entity.anim_time += i32(dt * 1000)
 ```
 
-累积播放时间。如果超过当前帧的 `duration`，就切到下一帧。
+duration:
+- 如果是约定好每一运行帧播放一个动画帧，那只要循环就行。但是并没有这个约定，而是用每一动画帧的duration来判断“播放”多久，什么时候切换到下一帧
+- 累积播放时间。如果超过当前帧的 `duration`，就切到下一帧。
 
 
 ## 世界坐标怎么变成 buffer 坐标

@@ -8,6 +8,7 @@ EntityType :: enum {
 	Enemy,
 	Tree,
 	Wall,
+	Weapon,
 }
 
 EntityStatus :: enum {
@@ -19,6 +20,7 @@ EntityStatus :: enum {
 	Attack_2,
 	Guard,
 	Throw,
+	Harpoon,
 }
 
 Direction :: enum {
@@ -35,6 +37,7 @@ status_names := [EntityStatus]string {
 	.Attack_2 = "Attack 2",
 	.Guard    = "Guard",
 	.Throw    = "Throw",
+	.Harpoon  = "Harpoon",
 }
 
 entity_status_to_name :: proc(s: EntityStatus) -> string {
@@ -51,19 +54,20 @@ name_to_entity_status :: proc(name: string) -> EntityStatus {
 }
 
 LowEntity :: struct {
-	pos:              WorldPosition,
-	type:             EntityType,
-	size:             V2,
-	status:           EntityStatus,
-	anim_frame_idx:   i32,
-	anim_time:        i32, // ms
-	direction:        Direction,
-	img_pivot_offset: V2i,
-	moveable:         bool,
-	velocity:         V2,
-	acc:              V2,
-	hit_point_total:  i32,
-	hit_point_left:   i32,
+	pos:                  WorldPosition,
+	type:                 EntityType,
+	size:                 V2,
+	status:               EntityStatus,
+	anim_frame_idx:       i32,
+	anim_time:            i32, // ms,当前frame花了多少时间，在切换frame以后清零
+	direction:            Direction,
+	img_pivot_offset:     V2i,
+	moveable:             bool,
+	velocity:             V2,
+	acc:                  V2,
+	hit_point_total:      i32,
+	hit_point_left:       i32,
+	shark_harpoon_thrown: bool,
 }
 
 HighEntity :: struct {

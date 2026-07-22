@@ -58,18 +58,18 @@ next_status :: proc(
 
 
 GameState :: struct {
-	camera_pos:            WorldPosition,
-	player:                ^LowEntity,
-	shark:                 ^LowEntity,
-	entities:              [10000]LowEntity,
-	entity_count:          u32,
-	background:            ^image.Image,
-	unit_animate:          Animation,
-	harpoon_shark_animate: Animation,
-	tilemap1:              ^image.Image,
-	game_map:              [tileMapY][tileMapX]V2i,
-	rock_images:           [4]^image.Image,
-	world:                 World,
+	camera_pos:           WorldPosition,
+	player:               ^LowEntity,
+	shark:                ^LowEntity,
+	entities:             [10000]LowEntity,
+	entity_count:         u32,
+	background:           ^image.Image,
+	unit_animate:         Animation,
+	harpoon_shark_assets: Animation,
+	tilemap1:             ^image.Image,
+	game_map:             [tileMapY][tileMapX]V2i,
+	rock_images:          [4]^image.Image,
+	world:                World,
 }
 
 CorppedImage :: struct {
@@ -222,7 +222,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			V2i{95, 130},
 		)
 
-		game_state.harpoon_shark_animate = load_animate_assets(
+		game_state.harpoon_shark_assets = load_animate_assets(
 			game_memory,
 			game_state,
 			"resources/Enemies/Harpoon Shark.png",
@@ -278,22 +278,41 @@ update_and_render: UpdateAndRenderProc : proc(
 	// shark运动输入
 	shark_rfd :: 5
 	distance_to_player := relative_pos(game_state.player.pos, game_state.shark.pos)
+	shark_next_status :=
+		math.abs(linalg.length(game_state.shark.velocity)) > 0.01 ? EntityStatus.Run : EntityStatus.Idle
 	if linalg.length(distance_to_player) < 2 {
-		game_state.shark.acc =
-			linalg.normalize(distance_to_player.xy) * shark_rfd - game_state.shark.velocity * 5
+		//game_state.shark.acc = linalg.normalize(distance_to_player.xy) * shark_rfd - game_state.shark.velocity * 5
+		shark_next_status = EntityStatus.Throw
 		game_state.shark.direction =
 			distance_to_player.x > 0 ? Direction.Forward : Direction.Backward
 	} else {
 		game_state.shark.acc = -game_state.shark.velocity * 5
 	}
-	shark_next_status :=
-		math.abs(linalg.length(game_state.shark.velocity)) > 0.01 ? EntityStatus.Run : EntityStatus.Idle
 	if game_state.shark.status != EntityStatus.Null &&
 	   game_state.shark.status != shark_next_status {
 		game_state.shark.anim_frame_idx = 0
 		game_state.shark.anim_time = 0
 	}
 	game_state.shark.status = shark_next_status
+
+	if game_state.shark.status == EntityStatus.Throw &&
+	   game_state.shark.anim_frame_idx == 3 &&
+	   game_state.shark.shark_harpoon_thrown == false {
+		harpoon := LowEntity {
+			pos      = game_state.shark.pos,
+			type     = EntityType.Weapon,
+			size     = V2{1, 0.2},
+			moveable = true,
+			velocity = distance_to_player.xy,
+			acc      = V2{0, -1},
+		}
+		add_entity(game_state, harpoon, game_memory)
+		game_state.shark.shark_harpoon_thrown = true
+
+	} else if game_state.shark.status == EntityStatus.Throw &&
+	   game_state.shark.anim_frame_idx == 0 {
+		game_state.shark.shark_harpoon_thrown = false
+	}
 
 	// camera追随player
 	game_state.camera_pos = game_state.player.pos
