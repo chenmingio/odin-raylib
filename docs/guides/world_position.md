@@ -80,7 +80,7 @@ chunk -1 covers [-1.5, -0.5)
 
 - 以 camera 为中心的模拟区域
 - 大量 relative position 运算
-- entity pivot / collision center 相关计算
+- entity anchor / collision center 相关计算
 
 规范化时更接近 `round` 语义:
 
@@ -202,7 +202,7 @@ world = chunkXYZ * chunkSideInMeters + offset
 chunk 10 + offset 0.3 = world 10.3
 ```
 
-entity 自己的中心点、脚底点、sprite pivot、collision shape pivot 不要塞进 chunk offset 语义里，应该作为 entity/render/collision 自己的局部 offset 处理。
+entity 自己的中心点、脚底点、sprite anchor、collision shape anchor 不要塞进 chunk offset 语义里，应该作为 entity/render/collision 自己的局部 offset 处理。
 
 如果之后更强调 camera-centered simulation，可以改成 Casey 那种中心 offset，但要一起改 canonicalize、assert、relative_pos 的语义，不能混用。
 

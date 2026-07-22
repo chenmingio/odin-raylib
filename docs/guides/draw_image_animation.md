@@ -10,7 +10,7 @@ JSON 文件是什么意思，以及代码如何根据这些数据，从 texture 
 2. **把这块图画到 buffer 的哪里？**
 3. **如果 Aseprite trim 掉了透明边缘，怎么让动画帧不乱跳？**
 
-之前容易混乱，就是因为 `frame`、`spriteSourceSize`、实体 pivot、
+之前容易混乱，就是因为 `frame`、`spriteSourceSize`、实体 anchor、
 buffer 坐标都混在了一起。
 
 ## 术语表
@@ -42,8 +42,8 @@ TexturePacker/Aseprite JSON 生态：`frame` 是 texture/atlas 内的位置
 
 | 当前名字 | 建议名字 | 含义 |
 |---|---|---|
-| `anchor_buffer_pos` | `entity_pivot_buffer_pos` | 实体/精灵的目标 pivot 在 buffer 上的位置。 |
-| `anchorOffset` | `pivot_in_source` | pivot 在未裁剪原始帧里的像素坐标。 |
+| `anchor_buffer_pos` | `entity_anchor_buffer_pos` | 实体/精灵的目标 anchor 在 buffer 上的位置。 |
+| `anchorOffset` | `anchor_in_source` | anchor 在未裁剪原始帧里的像素坐标。 |
 | `clips` | `clip_frames` | 当前动画片段的帧列表。 |
 | `frame` | `anim_frame` | Aseprite JSON 的单帧数据。 |
 | `sprite_size` | `source_rect_size` | atlas 中实际被绘制的裁剪后 sprite 尺寸。 |
@@ -109,8 +109,8 @@ Warrior.png / texture atlas
 +--------------------------------+
 ```
 
-`pivot_in_source` 是原始帧坐标系里的固定角色 pivot；
-`entity_pivot_buffer_pos` 是这个 pivot 在 buffer 上要对齐到的位置。
+`anchor_in_source` 是原始帧坐标系里的固定角色 anchor；
+`entity_anchor_buffer_pos` 是这个 anchor 在 buffer 上要对齐到的位置。
 
 ```text
 原始 source frame，固定坐标系
@@ -125,7 +125,7 @@ Warrior.png / texture atlas
 |      +-------------------+     |
 |             x                  |
 |             ^                  |
-|             pivot_in_source    |
+|             anchor_in_source    |
 |                                |
 +--------------------------------+
 ```
@@ -134,9 +134,9 @@ Warrior.png / texture atlas
 
 ```text
 sprite_dest_top_left =
-    entity_pivot_buffer_pos +
+    entity_anchor_buffer_pos +
     trimmed_offset_in_source -
-    pivot_in_source
+    anchor_in_source
 ```
 
 动画渲染时同时涉及三个不同的矩形：
@@ -162,7 +162,7 @@ sprite_dest_top_left =
 - TexturePacker/Felgo 文档：`frame`、`spriteSourceSize`、`sourceSize`
   的含义和 Aseprite JSON 基本一致。
   https://felgo.com/doc/howto-texture-packer/
-- Unity 2D 文档：`pivot` 是 sprite 的坐标原点/主要锚点。
+- Unity 2D 文档：`anchor` 是 sprite 的坐标原点/主要锚点。
   https://docs.unity3d.com/560/Documentation/Manual/SpriteEditor.html
 
 
@@ -422,7 +422,7 @@ sourceSize
 ```
 
 
-### 用 `spriteSourceSize` 还原到固定的 source pivot
+### 用 `spriteSourceSize` 还原到固定的 source anchor
 
 对角色动画来说，我们通常希望找到一个稳定的点，比如：
 
@@ -433,17 +433,17 @@ sourceSize
 ```
 
 这个点不应该每一帧重新根据 trimmed sprite 的红框来算。否则如果角色跳起来、
-被击飞、攻击时身体在原始帧里移动，代码会把它重新拉回 pivot，动画里的位移
+被击飞、攻击时身体在原始帧里移动，代码会把它重新拉回 anchor，动画里的位移
 就丢了。
 
 更合理的做法是：在原始 `sourceSize` 坐标系里选一个固定点。Warrior 的 Idle
 帧底部中心大约是 `V2i{101, 130}`，当前代码在视觉上微调为：
 
 ```odin
-pivot_in_source := V2i{101, 130}
+anchor_in_source := V2i{101, 130}
 ```
 
-图示见术语表里的 `pivot_in_source` 核心图示。
+图示见术语表里的 `anchor_in_source` 核心图示。
 
 `spriteSourceSize.x/y` 的作用是：告诉我们当前 trimmed sprite 的左上角在
 这个原始 source frame 里的哪里。
@@ -454,35 +454,35 @@ pivot_in_source := V2i{101, 130}
 trimmed_offset_in_source := V2i{frame.spriteSourceSize.x, frame.spriteSourceSize.y}
 
 sprite_dest_top_left =
-    entity_pivot_buffer_pos +
+    entity_anchor_buffer_pos +
     trimmed_offset_in_source -
-    pivot_in_source
+    anchor_in_source
 ```
 
 这里的含义是：
 
 ```text
-entity_pivot_buffer_pos 是游戏世界里实体的位置落到屏幕上的点
-pivot_in_source 是素材原始 frame 里的固定角色 pivot，当前 Warrior 使用 V2i{101, 130}
+entity_anchor_buffer_pos 是游戏世界里实体的位置落到屏幕上的点
+anchor_in_source 是素材原始 frame 里的固定角色 anchor，当前 Warrior 使用 V2i{101, 130}
 spriteSourceSize.xy 是当前 trimmed sprite 相对原始 frame 的左上角
 
-让 pivot_in_source 对齐到游戏里的 entity_pivot_buffer_pos，
+让 anchor_in_source 对齐到游戏里的 entity_anchor_buffer_pos，
 同时保留当前帧在原始 source frame 里的位移。
 ```
 
 如果角色反向绘制，像素会在 `draw_image_corp` / `blend` 阶段水平翻转。
-这时不能直接复用正向的 `pivot_in_source.x`，否则视觉上的 pivot 会落在翻转前
-的位置。需要在完整的原始 `sourceSize` 坐标系里镜像 pivot：
+这时不能直接复用正向的 `anchor_in_source.x`，否则视觉上的 anchor 会落在翻转前
+的位置。需要在完整的原始 `sourceSize` 坐标系里镜像 anchor：
 
 ```odin
-pivot_in_source := animation.pivot_in_source
+anchor_in_source := animation.anchor_in_source
 if reverse {
-    pivot_in_source.x = i32(anim_frame.sourceSize.w) - animation.pivot_in_source.x
+    anchor_in_source.x = i32(anim_frame.sourceSize.w) - animation.anchor_in_source.x
 }
 ```
 
 注意这里用的是 `sourceSize.w`，不是 `spriteSourceSize.w` 或 `frame.w`。
-原因是 `pivot_in_source` 定义在 trim 之前的原始 source frame 里；反向时也要
+原因是 `anchor_in_source` 定义在 trim 之前的原始 source frame 里；反向时也要
 在同一个完整坐标系里做镜像，不能用 trimmed sprite 的宽度来算。
 
 所以这几个字段的职责可以总结成：
@@ -497,8 +497,8 @@ spriteSourceSize
 sourceSize
 = 原始动画帧的统一坐标系有多大
 
-pivot_in_source
-= 我在这个统一坐标系里选的固定角色 pivot
+anchor_in_source
+= 我在这个统一坐标系里选的固定角色 anchor
 ```
 
 
@@ -721,7 +721,7 @@ rel_pos := relative_pos(entity.pos, game_state.camera_pos)
 然后变成 buffer 坐标：
 
 ```odin
-entity_pivot_buffer_pos := rel_pos_to_buffer_pos(rel_pos, image_buffer)
+entity_anchor_buffer_pos := rel_pos_to_buffer_pos(rel_pos, image_buffer)
 ```
 
 当前公式：
@@ -763,7 +763,7 @@ buffer 坐标
      +y
 ```
 
-`entity_pivot_buffer_pos` 是实体 pivot 在 buffer 上的位置。当前项目里，它更像
+`entity_anchor_buffer_pos` 是实体 anchor 在 buffer 上的位置。当前项目里，它更像
 “实体脚底中心”。
 
 
@@ -784,22 +784,22 @@ entity_size_px := V2i {
 }
 ```
 
-从 pivot 得到 body 左上角：
+从 anchor 得到 body 左上角：
 
 ```odin
-body_top_left := entity_top_left_from_pivot(entity_pivot_buffer_pos, entity_size_px)
+body_top_left := entity_top_left_from_anchor(entity_anchor_buffer_pos, entity_size_px)
 ```
 
 当前公式：
 
 ```odin
-body_top_left = entity_pivot_buffer_pos - V2i{size_px.x / 2, size_px.y}
+body_top_left = entity_anchor_buffer_pos - V2i{size_px.x / 2, size_px.y}
 ```
 
 图解：
 
 ```text
-entity_pivot_buffer_pos
+entity_anchor_buffer_pos
       x
       |
       | size_px.y
@@ -810,7 +810,7 @@ entity_pivot_buffer_pos
 |           |
 +-----------+
 
-body_top_left = entity_pivot_buffer_pos - (width / 2, height)
+body_top_left = entity_anchor_buffer_pos - (width / 2, height)
 ```
 
 
@@ -844,16 +844,16 @@ sprite_dest_top_left 怎么算
 
 ## 当前最终动画放置模型
 
-当前采用 **source frame 固定 pivot 模型**。
+当前采用 **source frame 固定 anchor 模型**。
 
 核心原则：
 
 ```text
-entity pivot
-= 游戏世界里的实体 pivot，落到屏幕上以后是 entity_pivot_buffer_pos
+entity anchor
+= 游戏世界里的实体 anchor，落到屏幕上以后是 entity_anchor_buffer_pos
 
-pivot_in_source
-= 原始 source frame 坐标系里的固定角色 pivot
+anchor_in_source
+= 原始 source frame 坐标系里的固定角色 anchor
 
 spriteSourceSize.xy
 = 当前 trimmed sprite 左上角在原始 source frame 里的位置
@@ -862,55 +862,55 @@ spriteSourceSize.xy
 代码里的公式是：
 
 ```odin
-pivot_in_source := animation.pivot_in_source
+anchor_in_source := animation.anchor_in_source
 trimmed_offset_in_source := V2i{anim_frame.spriteSourceSize.x, anim_frame.spriteSourceSize.y}
 
 if reverse {
-    pivot_in_source.x = i32(anim_frame.sourceSize.w) - animation.pivot_in_source.x
+    anchor_in_source.x = i32(anim_frame.sourceSize.w) - animation.anchor_in_source.x
 }
 
 sprite_dest_top_left =
-    entity_pivot_buffer_pos +
+    entity_anchor_buffer_pos +
     trimmed_offset_in_source -
-    pivot_in_source
+    anchor_in_source
 ```
 
 含义：
 
 ```text
-把原始 source frame 里的固定 pivot_in_source 对齐到 entity pivot，
+把原始 source frame 里的固定 anchor_in_source 对齐到 entity anchor，
 再根据 spriteSourceSize.xy 找到当前 trimmed sprite 的左上角。
 ```
 
-图示见术语表里的 `pivot_in_source` 核心图示。
+图示见术语表里的 `anchor_in_source` 核心图示。
 
 画到 buffer 时：
 
 ```text
 buffer
 
-entity_pivot_buffer_pos
+entity_anchor_buffer_pos
         x
         ^
         |
-让 pivot_in_source 对齐到这里
+让 anchor_in_source 对齐到这里
 
 sprite_dest_top_left =
-    entity_pivot_buffer_pos + spriteSourceSize.xy - pivot_in_source
+    entity_anchor_buffer_pos + spriteSourceSize.xy - anchor_in_source
 ```
 
 这个模型把概念分开了：
 
 ```text
-entity pivot 负责世界/屏幕位置
-pivot_in_source 负责素材原始 frame 内部的固定角色 pivot
+entity anchor 负责世界/屏幕位置
+anchor_in_source 负责素材原始 frame 内部的固定角色 anchor
 spriteSourceSize 负责 trim 还原
 frame 负责 atlas 裁图
 ```
 
 这个模型的好处是：如果某一帧里角色真的跳起、后仰、攻击前探，这个位移会体
 现在 `spriteSourceSize.x/y` 里。代码不会每帧重新用 trimmed sprite 的红框底
-部去对齐 pivot，所以不会把动画里的真实位移抹掉。
+部去对齐 anchor，所以不会把动画里的真实位移抹掉。
 
 
 ## 排错时怎么看
@@ -921,11 +921,11 @@ frame 负责 atlas 裁图
    检查 `frame`、`source_rect_size`、`source_rect_pos`、`draw_image_corp`。
 
 2. 人物形状正确，但整体位置偏：
-   检查 `entity_pivot_buffer_pos`、`pivot_in_source`、`spriteSourceSize.xy` 到 `sprite_dest_top_left`
+   检查 `entity_anchor_buffer_pos`、`anchor_in_source`、`spriteSourceSize.xy` 到 `sprite_dest_top_left`
    的公式。
 
 3. body box 正确，动画整体偏：
-   世界坐标和 body 计算大概率没问题，重点看 `pivot_in_source` 是否需要调整。
+   世界坐标和 body 计算大概率没问题，重点看 `anchor_in_source` 是否需要调整。
 
 4. 某些动作帧突然跳动：
    先确认这是美术帧在原始 source frame 里的真实位移，还是 JSON 里的
@@ -937,7 +937,7 @@ frame 负责 atlas 裁图
 WorldPosition
 -> relative_pos
 -> rel_pos_to_buffer_pos
--> entity_pivot_buffer_pos
--> entity_pivot_buffer_pos + spriteSourceSize.xy - pivot_in_source
+-> entity_anchor_buffer_pos
+-> entity_anchor_buffer_pos + spriteSourceSize.xy - anchor_in_source
 -> sprite_dest_top_left
 ```

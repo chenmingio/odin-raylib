@@ -339,8 +339,8 @@ update_and_render: UpdateAndRenderProc : proc(
 		// debug chunk原点
 		for x in -10 ..< 10 {
 			for y in -10 ..< 10 {
-				chunkPivot := WorldPosition{V3i{i32(x), i32(y), 0}, 0}
-				rel_pos := relative_pos(chunkPivot, game_state.camera_pos)
+				chunkanchor := WorldPosition{V3i{i32(x), i32(y), 0}, 0}
+				rel_pos := relative_pos(chunkanchor, game_state.camera_pos)
 				buffer_pos := rel_pos_to_buffer_pos(rel_pos, image_buffer)
 				draw_dot(buffer_pos, image_buffer)
 			}

@@ -48,9 +48,9 @@ AnimClip :: struct {
 }
 
 Animation :: struct {
-	clips:           [EntityStatus]AnimClip, // 用枚举当下标的定长数组
-	image:           ^image.Image,
-	pivot_in_source: V2i,
+	clips:            [EntityStatus]AnimClip, // 用枚举当下标的定长数组
+	image:            ^image.Image,
+	anchor_in_source: V2i,
 }
 
 AseSpriteAsset :: struct {
@@ -59,35 +59,35 @@ AseSpriteAsset :: struct {
 }
 
 Sprite :: struct {
-	image:          ^image.Image,
-	frame_size:     V2i, // image里多大的一块
-	frame_pos:      V2i, // sprite距离image左上角的距离
-	pivot_in_frame: V2i,
+	image:           ^image.Image,
+	frame_size:      V2i, // image里多大的一块
+	frame_pos:       V2i, // sprite距离image左上角的距离
+	anchor_in_frame: V2i, // 锚点距离image左上角的距离
 }
 
-sprite_from_assets :: proc(assets: AseSpriteAsset, key: string, pivot_in_source: V2i) -> Sprite {
+sprite_from_assets :: proc(assets: AseSpriteAsset, key: string, anchor_in_source: V2i) -> Sprite {
 	anim_frame, ok := assets.sheet.frames[key]
 	assert(ok, "frame not found")
 
 	source_rect_size := V2i{anim_frame.frame.w, anim_frame.frame.h}
 	source_rect_pos := V2i{anim_frame.frame.x, anim_frame.frame.y}
-	trim_offset_in_source := V2i{anim_frame.spriteSourceSize.x, anim_frame.spriteSourceSize.y}
+	trim_offset_on_source := V2i{anim_frame.spriteSourceSize.x, anim_frame.spriteSourceSize.y}
 	return Sprite {
 		assets.image,
 		source_rect_size,
 		source_rect_pos,
-		pivot_in_source - trim_offset_in_source,
+		anchor_in_source - trim_offset_on_source,
 	}
 }
 
 animation_from_assets :: proc(
 	assets: AseSpriteAsset,
 	prefix: string,
-	pivot_in_source: V2i,
+	anchor_in_source: V2i,
 ) -> Animation {
 	result: Animation
 	result.image = assets.image
-	result.pivot_in_source = pivot_in_source
+	result.anchor_in_source = anchor_in_source
 
 	for tag in assets.sheet.meta.frameTags {
 		status, ok := name_to_entity_status(tag.name)

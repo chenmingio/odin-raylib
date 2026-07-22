@@ -24,12 +24,12 @@ OffScreenBuffer :: struct {
 
 // use buffer pixel pos
 draw_entity_body_rectangle :: proc(
-	entity_pivot_buffer_pos: V2i,
+	entity_anchor_buffer_pos: V2i,
 	size_px: V2i,
 	buffer: OffScreenBuffer,
 ) {
 	draw_rectangle(
-		entity_top_left_from_pivot(entity_pivot_buffer_pos, size_px),
+		entity_top_left_from_anchoranchor(entity_anchor_buffer_pos, size_px),
 		size_px,
 		RED,
 		buffer,
@@ -242,9 +242,12 @@ rel_pos_to_buffer_pos :: proc(rel: V3, buffer: OffScreenBuffer) -> V2i {
 	return V2i{buffer.width / 2 + i32(rel.x * SCALE), buffer.height / 2 - i32(rel.y * SCALE)}
 }
 
-entity_top_left_from_pivot :: proc(entity_pivot_buffer_pos: V2i, size_px: V2i) -> V2i {
+entity_top_left_from_anchoranchor :: proc(
+	entity_anchor_buffer_posanchor: V2i,
+	size_px: V2i,
+) -> V2i {
 	// 对象左上角 = 屏幕中心 + 相对偏移 - 重心到左上角调整(半宽, 全高)
-	return entity_pivot_buffer_pos - V2i{size_px.x / 2, size_px.y}
+	return entity_anchor_buffer_posanchor - V2i{size_px.x / 2, size_px.y}
 }
 
 draw_entity_size :: proc(rel_position: V3, size: V2, buffer: OffScreenBuffer) {
@@ -266,10 +269,10 @@ draw_entity_image :: proc(
 	image: ^image.Image,
 	entity: ^LowEntity,
 	buffer: OffScreenBuffer,
-	pivot_offset: V2i,
+	anchor_offset: V2i,
 ) {
 	size_px := meter_to_pixel(entity.size)
-	top_left_pos := dest_buffer_pos - pivot_offset
+	top_left_pos := dest_buffer_pos - anchor_offset
 
 	draw_image_simple(top_left_pos, image, buffer)
 	when ODIN_DEBUG {draw_entity_body_rectangle(dest_buffer_pos, size_px, buffer)
@@ -306,20 +309,20 @@ draw_entity_animation :: proc(
 
 	trim_offset_in_source := V2i{anim_frame.spriteSourceSize.x, anim_frame.spriteSourceSize.y}
 
-	pivot_in_source := animation.pivot_in_source
-	offset_from_pivot_to_dest := trim_offset_in_source - pivot_in_source
-	// reverse通过画图可以发现，是pivot到dest点翻转再减去frame上边框向量构成的新的向量
+	anchor_in_source := animation.anchor_in_source
+	offset_from_anchor_to_dest := trim_offset_in_source - anchor_in_source
+	// reverse通过画图可以发现，是anchor到dest点翻转再减去frame上边框向量构成的新的向量
 	if reverse {
-		offset_from_pivot_to_dest =
-			offset_from_pivot_to_dest * V2i{-1, 1} - V2i{source_rect_size.x, 0}
+		offset_from_anchor_to_dest =
+			offset_from_anchor_to_dest * V2i{-1, 1} - V2i{source_rect_size.x, 0}
 	}
 
-	// 逻辑：把原始 source frame 里的固定 pivot 对齐到实体 pivot，再画 trimmed sprite。
-	// entity_pivot_buffer_pos 基础位置，从哪里开始画，此时sprite的左上角在目标点
+	// 逻辑：把原始 source frame 里的固定 anchor 对齐到实体 anchor，再画 trimmed sprite。
+	// entity_anchor_buffer_pos 基础位置，从哪里开始画，此时sprite的左上角在目标点
 	// trim_offset_in_source 从trimmed sprite还原为source frame的左上角
-	// pivot_in_source 从source frame左上角到固定pivot点（约定为画面上的人物重心）
+	// anchor_in_source 从source frame左上角到固定anchor点（约定为画面上的人物重心）
 	// 向量的方向根据xy的正负和buffer pos的正负方向来确定箭头方向。
-	sprite_dest_top_left := dest_buffer_pos + offset_from_pivot_to_dest
+	sprite_dest_top_left := dest_buffer_pos + offset_from_anchor_to_dest
 
 	draw_image_corp(
 		sprite_dest_top_left,
@@ -336,7 +339,7 @@ draw_entity_animation :: proc(
 }
 
 // 我们可以把武器也认为是动画frame的一部分，只不过只有1帧（未来可能有多帧）
-// 武器需要处理1.旋转角度 2.pivot在哪里
+// 武器需要处理1.旋转角度 2.anchor在哪里
 // 根据entity的v来计算旋转角度
 //
 draw_sprite :: proc(
@@ -346,7 +349,7 @@ draw_sprite :: proc(
 	buffer: OffScreenBuffer,
 	dt: f32,
 ) {
-	top_left_pos := dest_buffer_pos - sprite.pivot_in_frame
+	top_left_pos := dest_buffer_pos - sprite.anchor_in_frame
 	draw_image_corp(top_left_pos, sprite.image, buffer, sprite.frame_size, sprite.frame_pos, false)
 
 	when ODIN_DEBUG {
@@ -355,7 +358,7 @@ draw_sprite :: proc(
 }
 
 draw_entity_hit_point :: proc(
-	pivot: V2i,
+	anchor: V2i,
 	size: V2i,
 	buffer: OffScreenBuffer,
 	total_points: i32,
@@ -363,12 +366,13 @@ draw_entity_hit_point :: proc(
 ) {
 	space_px :: 10
 	point_size_px :: 10
-	left_pivot_offset_x := i32(
+	left_anchor_offset_x := i32(
 		(total_points - 1) / 2 * space_px + (total_points / 2) * point_size_px,
 	)
 	for i in 0 ..< total_points {
 		draw_rectangle(
-			pivot + V2i{-left_pivot_offset_x + i * (point_size_px + space_px), -size.y - space_px},
+			anchor +
+			V2i{-left_anchor_offset_x + i * (point_size_px + space_px), -size.y - space_px},
 			point_size_px,
 			RED,
 			buffer,
@@ -389,7 +393,7 @@ render_sim_region :: proc(
 	for i in 0 ..< len(entities) {
 		entity := entities[i].low_entity
 		// 下面计算把worldPos（米）转换为buffer使用的坐标（pixel）
-		entity_pivot_buffer_pos := rel_pos_to_buffer_pos(
+		entity_anchor_buffer_pos := rel_pos_to_buffer_pos(
 			relative_pos(entity.pos, game_state^.camera_pos),
 			image_buffer,
 		)
@@ -399,7 +403,10 @@ render_sim_region :: proc(
 			i32(meter_to_pixel(entity.size.x)),
 			i32(meter_to_pixel(entity.size.y)),
 		}
-		top_left_buffer_pos := entity_top_left_from_pivot(entity_pivot_buffer_pos, entity_size_px)
+		top_left_buffer_pos := entity_top_left_from_anchoranchor(
+			entity_anchor_buffer_pos,
+			entity_size_px,
+		)
 
 		// 是否玩家
 		is_player := entity.type == EntityType.Player
@@ -409,14 +416,14 @@ render_sim_region :: proc(
 		switch entity.type {
 		case .Player:
 			draw_entity_animation(
-				entity_pivot_buffer_pos,
+				entity_anchor_buffer_pos,
 				game_state.unit_animate,
 				entity,
 				image_buffer,
 				time_span,
 			)
 			draw_entity_hit_point(
-				entity_pivot_buffer_pos,
+				entity_anchor_buffer_pos,
 				entity_size_px,
 				image_buffer,
 				entity.hit_point_total,
@@ -424,7 +431,7 @@ render_sim_region :: proc(
 			)
 		case .Wall:
 			draw_entity_image(
-				entity_pivot_buffer_pos,
+				entity_anchor_buffer_pos,
 				game_state^.rock_images[0],
 				entity,
 				image_buffer,
@@ -433,7 +440,7 @@ render_sim_region :: proc(
 		case .Tree:
 		case .Enemy:
 			draw_entity_animation(
-				entity_pivot_buffer_pos,
+				entity_anchor_buffer_pos,
 				game_state.harpoon_shark_animation,
 				entity,
 				image_buffer,
@@ -441,7 +448,7 @@ render_sim_region :: proc(
 			)
 		case .Weapon:
 			draw_sprite(
-				entity_pivot_buffer_pos,
+				entity_anchor_buffer_pos,
 				game_state.harpoon_sprite,
 				entity,
 				image_buffer,
