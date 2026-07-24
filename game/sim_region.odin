@@ -70,6 +70,8 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory) -> SimRegion {
 	return result
 }
 
+// 自己的物品就不能和自己碰撞
+// 武器可以和别人碰撞（并计算伤害）
 shouldCollide :: proc(ety_a: ^HighEntity, ety_b: ^HighEntity) -> bool {
 	return ety_a != ety_b
 }
@@ -165,7 +167,7 @@ collide_convex_polygon_swept :: proc(ety_a: ^HighEntity, ety_b: ^HighEntity, tim
 		from := ccw_corners[i]
 		to := ccw_corners[(i + 1) % len(ccw_corners)]
 		hp := half_plane_from_ccw_points(from, to)
-		time_spans[i] = time_span_in_half_plane(V2{0, 0}, rel_velocity, hp)
+		time_spans[i] = time_span_in_half_plane(V2{0, 0}, rel_velocity.xy, hp)
 	}
 
 	inside_span := Interval{0, time, true}
@@ -257,6 +259,7 @@ collide_minkowski_swept_AABB :: proc(
 	// 如果没有碰撞，将使用100%的位移。碰撞则是最短的位移比例
 	nearest_hit := HitResult {
 		sweep_fraction = 1,
+		other          = ety_b,
 	}
 
 	for side in wall_sides {
@@ -291,9 +294,6 @@ collide_minkowski_swept_AABB :: proc(
 	return nearest_hit
 }
 
-acc_with_fiction_acc :: proc(ety: ^HighEntity) -> V2 {
-	return ety.low_entity.acc + (-0.5 * ety.low_entity.velocity)
-}
 
 simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 	entities := sim_region.high_entities[:sim_region.high_entity_count]
@@ -323,8 +323,12 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 
 			// 如果没有碰撞运行的距离
 			// delta = v0 * dt + 0.5 * a * dt * dt
-			dp_remaining: V2 = ety.low_entity.velocity * dt + 0.5 * ety.low_entity.acc * dt * dt
+			dp_remaining := ety.low_entity.velocity * dt + 0.5 * ety.low_entity.acc * dt * dt
 			ety.low_entity.velocity = ety.low_entity.velocity + ety.low_entity.acc * dt
+
+			// z 方向单独处理，不参与碰撞
+			ety.rel_pos.z += dp_remaining.z
+			dp_remaining.z = 0
 
 			for n in 0 ..< 4 {
 
@@ -334,7 +338,7 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 				// 先找到最近的碰撞对象，计算碰撞结果
 				for &other in entities {
 					if shouldCollide(&ety, &other) {
-						hit_result := collide_minkowski_swept_AABB(&ety, &other, dp_remaining)
+						hit_result := collide_minkowski_swept_AABB(&ety, &other, dp_remaining.xy)
 						if hit_result.hit &&
 						   (hit_result.sweep_fraction < nearest_hit.sweep_fraction) {
 							hit_result.other = &other
@@ -344,37 +348,49 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 				}
 
 				if nearest_hit.hit {
+					// 显示碰撞箱
 					record_collision_debug(
 						&sim_region.debug_collision,
 						&ety,
 						nearest_hit.other,
-						dp_remaining,
+						dp_remaining.xy,
 						nearest_hit,
 					)
-					dp := dp_remaining * nearest_hit.sweep_fraction
-					ety.rel_pos.x += dp.x
-					ety.rel_pos.y += dp.y
+					// 碰撞事件处理
+					if (ety.low_entity.type == EntityType.Player &&
+						   nearest_hit.other.low_entity.type == EntityType.Weapon) {
+						// nearest_hit.other.rel_pos.z = 0
 
-					dp_remaining =
-						linalg.dot(
-							dp_remaining * (1 - nearest_hit.sweep_fraction),
+					} else {
+						dp := dp_remaining * nearest_hit.sweep_fraction
+						ety.rel_pos += dp
+
+						dp_remaining_xy :=
+							linalg.dot(
+								dp_remaining.xy * (1 - nearest_hit.sweep_fraction),
+								nearest_hit.surface.xy,
+							) *
+							nearest_hit.surface.xy
+						dp_remaining.xy = dp_remaining_xy
+
+						ety.low_entity.velocity.xy = linalg.dot(
+							ety.low_entity.velocity.xy,
 							nearest_hit.surface,
-						) *
-						nearest_hit.surface
-
-					ety.low_entity.velocity = linalg.dot(
-						ety.low_entity.velocity,
-						nearest_hit.surface,
-					)
+						)}
 				} else {
 					// 没有碰撞
 					dp := dp_remaining
-					ety.rel_pos.x += dp.x
-					ety.rel_pos.y += dp.y
+					ety.rel_pos += dp
 					break
 				}
 			}
+			if ety.low_entity.type == EntityType.Weapon && ety.rel_pos.z <= 0 {
+				//ety.rel_pos.z = 0
+				//ety.low_entity.moveable = false
+				ety.to_remove = true
+			}
 		}
+
 	}
 }
 
@@ -395,19 +411,25 @@ reIndex :: proc(
 	new_pos: WorldPosition,
 	state: ^GameState,
 	memory: ^Memory,
+	remove: bool,
 ) {
+	oldPos := low_entity.pos
+	old_chunk := get_world_chunk(state, oldPos.chunkXYZ, memory)
+	assert(old_chunk != nil)
+
+	if (remove) {
+		remove_entity_index_from_hash_chunk(low_entity_storage_index, old_chunk, state)
+		return
+	}
+
 	// 同一个chunk里不用变
 	if (low_entity.pos.chunkXYZ == new_pos.chunkXYZ) {
 		return
 	}
 
-	oldPos := low_entity.pos
-	old_chunk := get_world_chunk(state, oldPos.chunkXYZ, memory)
-	assert(old_chunk != nil)
-
 	remove_entity_index_from_hash_chunk(low_entity_storage_index, old_chunk, state)
-
 	add_entity_index_to_hash_chunk(state, memory, low_entity_storage_index, new_pos.chunkXYZ)
+
 }
 
 // 把计算好的high entity对应的状态（目前是未知）更新回原来的low entity
@@ -421,6 +443,8 @@ end_sim :: proc(state: ^GameState, sim_region: ^SimRegion, memory: ^Memory) {
 			new_pos,
 			state,
 			memory,
+			// 不用删除high_entity?
+			high_entity.to_remove,
 		)
 		high_entity.low_entity.pos = new_pos
 	}

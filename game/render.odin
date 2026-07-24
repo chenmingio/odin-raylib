@@ -315,9 +315,12 @@ intersect_rect :: proc(a, b: BufferRectangle) -> (BufferRectangle, bool) {
 	return result, ok
 }
 
-// 以屏幕为原点的相对坐标 转换为 buffer的相对像素坐标（左上角为原点，xy倒置）
+// 以屏幕为原点的相对坐标 转换为 buffer的相对像素坐标（左上角为原点，xy倒置, z按比例兑换为y）
 rel_pos_to_buffer_pos :: proc(rel: V3, buffer: OffScreenBuffer) -> V2i {
-	return V2i{buffer.width / 2 + i32(rel.x * SCALE), buffer.height / 2 - i32(rel.y * SCALE)}
+	return V2i {
+		buffer.width / 2 + i32(rel.x * SCALE),
+		buffer.height / 2 - i32(rel.y * SCALE) - i32(rel.z * SCALE * 1.0),
+	}
 }
 
 entity_top_left_from_anchoranchor :: proc(
@@ -437,7 +440,7 @@ draw_sprite :: proc(
 		sprite.anchor_in_frame,
 		false,
 		V2{1, -1},
-		entity.velocity * V2{1, -1},
+		entity.velocity.xy * V2{1, -1},
 	)
 
 	when ODIN_DEBUG {
@@ -481,10 +484,7 @@ render_sim_region :: proc(
 	for i in 0 ..< len(entities) {
 		entity := entities[i].low_entity
 		// 下面计算把worldPos（米）转换为buffer使用的坐标（pixel）
-		entity_anchor_buffer_pos := rel_pos_to_buffer_pos(
-			relative_pos(entity.pos, game_state^.camera_pos),
-			image_buffer,
-		)
+		entity_anchor_buffer_pos := rel_pos_to_buffer_pos(entities[i].rel_pos, image_buffer)
 
 		// 玩家帧尺寸 or 一般实体尺寸（米→像素）
 		entity_size_px := V2i {

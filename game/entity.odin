@@ -57,9 +57,9 @@ LowEntity :: struct {
 	anim_frame_idx:       i32,
 	anim_time:            i32, // ms,当前frame花了多少时间，在切换frame以后清零
 	direction:            Direction,
-	moveable:             bool,
-	velocity:             V2,
-	acc:                  V2,
+	moveable:             bool, //是否移动，比如墙就不能移动
+	velocity:             V3,
+	acc:                  V3,
 	hit_point_total:      i32,
 	hit_point_left:       i32,
 	shark_harpoon_thrown: bool,
@@ -69,6 +69,7 @@ HighEntity :: struct {
 	low_entity:               ^LowEntity,
 	low_entity_storage_index: u32,
 	rel_pos:                  V3,
+	to_remove:                bool,
 }
 
 
@@ -154,7 +155,7 @@ add_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) {
 }
 
 // 辅助函数：删除实体（交换到末尾然后删除）
-remove_entity :: proc(state: ^GameState, index: u32) {
+remove_entity_internal :: proc(state: ^GameState, index: u32) {
 	assert(index < state.entity_count)
 	// 把最后一个实体移到被删除的位置
 	state.entities[index] = state.entities[state.entity_count - 1]

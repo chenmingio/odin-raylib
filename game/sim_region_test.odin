@@ -36,7 +36,7 @@ test_simulate_stops_player_at_wall :: proc(t: ^testing.T) {
 		type     = .Player,
 		size     = V2{0.6, 0.7},
 		moveable = true,
-		velocity = V2{3, 0},
+		velocity = V3{3, 0, 0},
 	}
 	wall := LowEntity {
 		type = .Wall,

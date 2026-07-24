@@ -279,7 +279,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	}
 
 	//game_state.player.velocity = linalg.normalize(V2{move.x, move.y}) * player_speed
-	game_state.player.acc = move.xy * player_rfd - game_state.player.velocity * 5 //摩擦力方向与速度相反
+	game_state.player.acc = move * player_rfd - game_state.player.velocity * 5 //摩擦力方向与速度相反
 
 	is_attacking_1 := input.controllers[0].action_left.ended_down
 	is_attacking_2 := input.controllers[0].action_down.ended_down
@@ -303,7 +303,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	} else {
 		game_state.shark.acc = -game_state.shark.velocity * 5
 	}
-	if  game_state.shark.status != shark_next_status {
+	if game_state.shark.status != shark_next_status {
 		game_state.shark.anim_frame_idx = 0
 		game_state.shark.anim_time = 0
 	}
@@ -313,12 +313,12 @@ update_and_render: UpdateAndRenderProc : proc(
 	   game_state.shark.anim_frame_idx == 4 &&
 	   game_state.shark.shark_harpoon_thrown == false {
 		harpoon := LowEntity {
-			pos      = world_pos_add(game_state.shark.pos, V3{0, 0.4, 0}),
+			pos      = world_pos_add(game_state.shark.pos, V3{0, 0.4, 0.5}),
 			type     = EntityType.Weapon,
 			size     = V2{0.2, 0.2},
 			moveable = true,
-			velocity = distance_to_player.xy,
-			acc      = V2{0, -1},
+			velocity = V3{distance_to_player.x, distance_to_player.y, 10},
+			acc      = V3{0, 0, -10},
 		}
 		add_entity(game_state, harpoon, game_memory)
 		game_state.shark.shark_harpoon_thrown = true
