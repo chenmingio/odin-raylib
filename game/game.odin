@@ -284,7 +284,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	is_attacking_1 := input.controllers[0].action_left.ended_down
 	is_attacking_2 := input.controllers[0].action_down.ended_down
 	next_status := next_status(is_moving, is_attacking_1, is_attacking_2)
-	if (game_state.player.status != nil && game_state.player.status != next_status) {
+	if (game_state.player.status != next_status) {
 		game_state.player.anim_frame_idx = 0
 		game_state.player.anim_time = 0
 	}
@@ -303,7 +303,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	} else {
 		game_state.shark.acc = -game_state.shark.velocity * 5
 	}
-	if game_state.shark.status != nil && game_state.shark.status != shark_next_status {
+	if  game_state.shark.status != shark_next_status {
 		game_state.shark.anim_frame_idx = 0
 		game_state.shark.anim_time = 0
 	}

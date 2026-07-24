@@ -2,6 +2,7 @@ package game
 import "base:intrinsics"
 import "core:fmt"
 import "core:image"
+import "core:math"
 import "core:mem"
 import "core:slice"
 import "core:testing"
@@ -167,6 +168,83 @@ draw_tile_map :: proc(grid_pos: V2i, tile_idx: V2i, img: ^image.Image, buffer: O
 		source_rect_size = V2i{tile_size, tile_size},
 		source_rect_pos = source_rect_pos,
 	)
+}
+
+// 绕 source_anchor_pos 旋转图片，并把该点放在 buffer_anchor_pos。
+// base_angle 和 target_angle 都是方向向量；图片默认朝向和目标朝向的差值就是旋转角。
+draw_image_rotated :: proc(
+	buffer_anchor_pos: V2i,
+	img: ^image.Image,
+	buffer: OffScreenBuffer,
+	source_rect_size: V2i = V2i{},
+	source_rect_pos: V2i = V2i{},
+	source_anchor_pos: V2i,
+	reverse: bool = false,
+	base_angle: V2,
+	target_angle: V2,
+) {
+	rect_size := source_rect_size
+	if rect_size.x <= 0 || rect_size.y <= 0 {
+		rect_size = V2i{i32(img.width), i32(img.height)}
+	}
+
+	// buffer 的 Y 轴向下，所以计算方向角时要反转 Y。
+	base_heading := math.atan2(-base_angle.y, base_angle.x)
+	target_heading := math.atan2(-target_angle.y, target_angle.x)
+	rotation := target_heading - base_heading
+	sin_rotation := math.sin(rotation)
+	cos_rotation := math.cos(rotation)
+
+	// 先将图片四角正向旋转，得到需要扫描的最小 buffer 矩形。
+	corners := [4]V2i{{0, 0}, {rect_size.x, 0}, {0, rect_size.y}, {rect_size.x, rect_size.y}}
+	min_x, max_x := f32(buffer_anchor_pos.x), f32(buffer_anchor_pos.x)
+	min_y, max_y := f32(buffer_anchor_pos.y), f32(buffer_anchor_pos.y)
+	for corner in corners {
+		dx := f32(corner.x - source_anchor_pos.x)
+		dy := f32(corner.y - source_anchor_pos.y)
+		x := f32(buffer_anchor_pos.x) + cos_rotation * dx + sin_rotation * dy
+		y := f32(buffer_anchor_pos.y) - sin_rotation * dx + cos_rotation * dy
+		min_x, max_x = min(min_x, x), max(max_x, x)
+		min_y, max_y = min(min_y, y), max(max_y, y)
+	}
+
+	draw_min_x := max(i32(0), i32(math.floor(min_x)))
+	draw_max_x := min(buffer.width, i32(math.ceil(max_x)))
+	draw_min_y := max(i32(0), i32(math.floor(min_y)))
+	draw_max_y := min(buffer.height, i32(math.ceil(max_y)))
+	pixels := transmute([dynamic]u32)img.pixels.buf
+	img_width := i32(img.width)
+
+	for y in draw_min_y ..< draw_max_y {
+		for x in draw_min_x ..< draw_max_x {
+			// 反向旋转：由 buffer 像素求原图像素，避免正向绘制产生空洞。
+			dx := f32(x - buffer_anchor_pos.x)
+			dy := f32(y - buffer_anchor_pos.y)
+			source_x := i32(
+				math.floor(cos_rotation * dx - sin_rotation * dy + f32(source_anchor_pos.x)),
+			)
+			source_y := i32(
+				math.floor(sin_rotation * dx + cos_rotation * dy + f32(source_anchor_pos.y)),
+			)
+			if source_x < 0 || source_x >= rect_size.x || source_y < 0 || source_y >= rect_size.y {
+				continue
+			}
+			if reverse {
+				source_x = rect_size.x - 1 - source_x
+			}
+
+			// source_x/source_y 是裁剪区域内的坐标；加上 source_rect_pos 才是整张图的坐标。
+			image_x := source_rect_pos.x + source_x
+			image_y := source_rect_pos.y + source_y
+			if image_x < 0 || image_x >= img_width || image_y < 0 || image_y >= i32(img.height) {
+				continue
+			}
+
+			source := pixels[image_y * img_width + image_x:image_y * img_width + image_x + 1]
+			target := buffer.data[y * buffer.width + x:y * buffer.width + x + 1]
+			blend(target, source)
+		}
+	}
 }
 
 // 从图集中裁剪并绘制图像
@@ -338,10 +416,10 @@ draw_entity_animation :: proc(
 	}
 }
 
-// 我们可以把武器也认为是动画frame的一部分，只不过只有1帧（未来可能有多帧）
-// 武器需要处理1.旋转角度 2.anchor在哪里
-// 根据entity的v来计算旋转角度
-//
+// 武器需要处理
+// 1.旋转角度：entity的v
+// 2.旋转中心：sprite的anchor
+
 draw_sprite :: proc(
 	dest_buffer_pos: V2i,
 	sprite: Sprite,
@@ -349,8 +427,18 @@ draw_sprite :: proc(
 	buffer: OffScreenBuffer,
 	dt: f32,
 ) {
-	top_left_pos := dest_buffer_pos - sprite.anchor_in_frame
-	draw_image_corp(top_left_pos, sprite.image, buffer, sprite.frame_size, sprite.frame_pos, false)
+	top_left_pos := dest_buffer_pos
+	draw_image_rotated(
+		top_left_pos,
+		sprite.image,
+		buffer,
+		sprite.frame_size,
+		sprite.frame_pos,
+		sprite.anchor_in_frame,
+		false,
+		V2{1, -1},
+		entity.velocity * V2{1, -1},
+	)
 
 	when ODIN_DEBUG {
 		draw_entity_body_rectangle(dest_buffer_pos, meter_to_pixel(entity.size), buffer)
