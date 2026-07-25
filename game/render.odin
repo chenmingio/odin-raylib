@@ -431,6 +431,8 @@ draw_sprite :: proc(
 	dt: f32,
 ) {
 	top_left_pos := dest_buffer_pos
+	z_scale :: 1
+	screen_velocity := V2{entity.velocity.x, -(entity.velocity.y + entity.velocity.z * z_scale)}
 	draw_image_rotated(
 		top_left_pos,
 		sprite.image,
@@ -440,7 +442,7 @@ draw_sprite :: proc(
 		sprite.anchor_in_frame,
 		false,
 		V2{1, -1},
-		entity.velocity.xy * V2{1, -1},
+		screen_velocity,
 	)
 
 	when ODIN_DEBUG {

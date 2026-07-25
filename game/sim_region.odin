@@ -73,7 +73,12 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory) -> SimRegion {
 // 自己的物品就不能和自己碰撞
 // 武器可以和别人碰撞（并计算伤害）
 shouldCollide :: proc(ety_a: ^HighEntity, ety_b: ^HighEntity) -> bool {
-	return ety_a != ety_b
+	if (ety_a.low_entity.type == EntityType.Enemy && ety_b.low_entity.type == EntityType.Weapon) ||
+	   (ety_b.low_entity.type == EntityType.Enemy && ety_a.low_entity.type == EntityType.Weapon) {
+		return false
+	} else {
+		return ety_a != ety_b
+	}
 }
 
 drawCollideBody :: proc(_: HighEntity) {
@@ -357,10 +362,9 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 						nearest_hit,
 					)
 					// 碰撞事件处理
-					if (ety.low_entity.type == EntityType.Player &&
-						   nearest_hit.other.low_entity.type == EntityType.Weapon) {
-						// nearest_hit.other.rel_pos.z = 0
-
+					if (ety.low_entity.type == EntityType.Weapon &&
+						   nearest_hit.other.low_entity.type == EntityType.Player) {
+						ety.to_remove = true
 					} else {
 						dp := dp_remaining * nearest_hit.sweep_fraction
 						ety.rel_pos += dp
@@ -382,15 +386,8 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 					dp := dp_remaining
 					ety.rel_pos += dp
 					break
-				}
-			}
-			if ety.low_entity.type == EntityType.Weapon && ety.rel_pos.z <= 0 {
-				//ety.rel_pos.z = 0
-				//ety.low_entity.moveable = false
-				ety.to_remove = true
-			}
+				}}
 		}
-
 	}
 }
 

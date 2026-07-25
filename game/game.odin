@@ -317,7 +317,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			type     = EntityType.Weapon,
 			size     = V2{0.2, 0.2},
 			moveable = true,
-			velocity = V3{distance_to_player.x, distance_to_player.y, 10},
+			velocity = V3{distance_to_player.x, distance_to_player.y, 1},
 			acc      = V3{0, 0, -10},
 		}
 		add_entity(game_state, harpoon, game_memory)
