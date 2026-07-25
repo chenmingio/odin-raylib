@@ -312,13 +312,21 @@ update_and_render: UpdateAndRenderProc : proc(
 	if game_state.shark.status == EntityStatus.Throw &&
 	   game_state.shark.anim_frame_idx == 4 &&
 	   game_state.shark.shark_harpoon_thrown == false {
+
+		start_pos := world_pos_add(game_state.shark.pos, V3{0, 0.4, 0.5})
+		target_pos := game_state.player.pos
+		target_pos.offset.z = game_state.player.size.y
+		ds := relative_pos(target_pos, start_pos)
+		time :: 1.0
+		g :: V3{0, 0, -10}
+		v0 := ds / time - (g * time) / 2
 		harpoon := LowEntity {
-			pos      = world_pos_add(game_state.shark.pos, V3{0, 0.4, 0.5}),
+			pos      = world_pos_add(game_state.shark.pos, V3{0, 0.4, 0.3}),
 			type     = EntityType.Weapon,
 			size     = V2{0.2, 0.2},
 			moveable = true,
-			velocity = V3{distance_to_player.x, distance_to_player.y, 1},
-			acc      = V3{0, 0, -10},
+			velocity = v0,
+			acc      = g,
 		}
 		add_entity(game_state, harpoon, game_memory)
 		game_state.shark.shark_harpoon_thrown = true
