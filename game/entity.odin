@@ -153,11 +153,3 @@ add_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) {
 	add_entity_index_to_hash_chunk(state, memory, state.entity_count, entity.pos.chunkXYZ)
 	state.entity_count += 1
 }
-
-// 辅助函数：删除实体（交换到末尾然后删除）
-remove_entity_internal :: proc(state: ^GameState, index: u32) {
-	assert(index < state.entity_count)
-	// 把最后一个实体移到被删除的位置
-	state.entities[index] = state.entities[state.entity_count - 1]
-	state.entity_count -= 1
-}

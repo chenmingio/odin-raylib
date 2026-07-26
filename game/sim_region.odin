@@ -353,7 +353,7 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 				}
 
 				if nearest_hit.hit {
-					// 显示碰撞箱
+					// debug显示碰撞箱
 					record_collision_debug(
 						&sim_region.debug_collision,
 						&ety,
@@ -365,6 +365,7 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 					if (ety.low_entity.type == EntityType.Weapon &&
 						   nearest_hit.other.low_entity.type == EntityType.Player) {
 						ety.to_remove = true
+						nearest_hit.other.low_entity.hit_point_left -= 1
 					} else {
 						dp := dp_remaining * nearest_hit.sweep_fraction
 						ety.rel_pos += dp

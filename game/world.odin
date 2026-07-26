@@ -96,7 +96,7 @@ get_world_chunk :: proc(state: ^GameState, chunkXYZ: V3i, memory: ^Memory = nil)
 	for c := head; c != nil; c = c.next_in_hash {
 		if c.chunkXYZ == chunkXYZ {
 			assert(c.first_block != nil)
-			return c
+			return c // 直接返回参数
 		}
 	}
 
