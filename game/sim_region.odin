@@ -417,6 +417,7 @@ reIndex :: proc(
 
 	if (remove) {
 		remove_entity_index_from_hash_chunk(low_entity_storage_index, old_chunk, state)
+		remove_entity_from_entity_list(state, low_entity_storage_index)
 		return
 	}
 

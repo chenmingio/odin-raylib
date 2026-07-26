@@ -145,11 +145,30 @@ remove_entity_index_from_hash_chunk :: proc(
 	}
 }
 
+remove_entity_from_entity_list :: proc(state: ^GameState, index: u32) {
+	state.free_entity_index_list[state.free_entity_index_count] = index
+	state.free_entity_index_count += 1
+}
+
+
 add_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) {
+	// get entity index
+	entity_index: u32
+	if state.free_entity_index_count > 0 {
+		entity_index = state.free_entity_index_list[state.free_entity_index_count - 1]
+		state.free_entity_index_count -= 1
+	} else {
+		entity_index = state.entity_count
+		state.entity_count += 1
+
+	}
+
 	// 添加entity数据储存
-	assert(state.entity_count < len(state.entities))
-	state.entities[state.entity_count] = entity
+	state.entities[entity_index] = entity
 	// 添加entity index
-	add_entity_index_to_hash_chunk(state, memory, state.entity_count, entity.pos.chunkXYZ)
-	state.entity_count += 1
+	add_entity_index_to_hash_chunk(state, memory, entity_index, entity.pos.chunkXYZ)
+}
+
+get_entity :: proc(state: ^GameState, index: u32) -> ^LowEntity {
+	return &state.entities[index]
 }

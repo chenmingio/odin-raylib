@@ -59,10 +59,12 @@ next_status :: proc(
 
 GameState :: struct {
 	camera_pos:              WorldPosition,
-	player:                  ^LowEntity,
-	shark:                   ^LowEntity,
+	player_entity_index:     u32,
+	shark_entity_index:      u32,
 	entities:                [10000]LowEntity,
 	entity_count:            u32,
+	free_entity_index_list:  [10000]u32,
+	free_entity_index_count: u32,
 	background:              ^image.Image,
 	unit_animate_assets:     AseSpriteAsset,
 	unit_animate:            Animation,
@@ -168,7 +170,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			hit_point_left  = 1,
 		}
 		add_entity(game_state, player, game_memory)
-		game_state.player = &game_state.entities[0]
+		game_state.player_entity_index = 0
 
 		//一个敌人
 		shark := LowEntity {
@@ -182,7 +184,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			hit_point_left  = 3,
 		}
 		add_entity(game_state, shark, game_memory)
-		game_state.shark = &game_state.entities[1]
+		game_state.shark_entity_index = 1
 
 		// 初始化地图
 		for i in 1 ..< 7 {
@@ -269,59 +271,62 @@ update_and_render: UpdateAndRenderProc : proc(
 		move += V3{1, 0, 0}
 	}
 
+	player := get_entity(game_state, game_state.player_entity_index)
 	// player 运动模拟
 	player_rfd :: 10.0 //深蹲重量/体重
 
 	is_moving := move.x != 0 || move.y != 0 || move.z != 0
 	if (move.x != 0) {
 		// 人物左右朝向
-		game_state.player.direction = (move.x > 0 ? Direction.Forward : Direction.Backward)
+		player.direction = (move.x > 0 ? Direction.Forward : Direction.Backward)
 	}
 
-	//game_state.player.velocity = linalg.normalize(V2{move.x, move.y}) * player_speed
-	game_state.player.acc = move * player_rfd - game_state.player.velocity * 5 //摩擦力方向与速度相反
+	//player.velocity = linalg.normalize(V2{move.x, move.y}) * player_speed
+	player.acc = move * player_rfd - player.velocity * 5 //摩擦力方向与速度相反
 
 	is_attacking_1 := input.controllers[0].action_left.ended_down
 	is_attacking_2 := input.controllers[0].action_down.ended_down
 	next_status := next_status(is_moving, is_attacking_1, is_attacking_2)
-	if (game_state.player.status != next_status) {
-		game_state.player.anim_frame_idx = 0
-		game_state.player.anim_time = 0
+	if (player.status != next_status) {
+		player.anim_frame_idx = 0
+		player.anim_time = 0
 	}
-	game_state.player.status = next_status
+	player.status = next_status
+
+
+	shark := get_entity(game_state, game_state.shark_entity_index)
 
 	// shark运动输入
 	shark_rfd :: 5
-	distance_to_player := relative_pos(game_state.player.pos, game_state.shark.pos)
+	distance_to_player := relative_pos(player.pos, shark.pos)
 	shark_next_status :=
-		math.abs(linalg.length(game_state.shark.velocity)) > 0.01 ? EntityStatus.Run : EntityStatus.Idle
+		math.abs(linalg.length(shark.velocity)) > 0.01 ? EntityStatus.Run : EntityStatus.Idle
 	if linalg.length(distance_to_player) < 5 {
-		//game_state.shark.acc = linalg.normalize(distance_to_player.xy) * shark_rfd - game_state.shark.velocity * 5
+		//shark.acc = linalg.normalize(distance_to_player.xy) * shark_rfd - shark.velocity * 5
 		shark_next_status = EntityStatus.Throw
-		game_state.shark.direction =
-			distance_to_player.x > 0 ? Direction.Forward : Direction.Backward
+		shark.direction = distance_to_player.x > 0 ? Direction.Forward : Direction.Backward
 	} else {
-		game_state.shark.acc = -game_state.shark.velocity * 5
+		shark.acc = -shark.velocity * 5
 	}
-	if game_state.shark.status != shark_next_status {
-		game_state.shark.anim_frame_idx = 0
-		game_state.shark.anim_time = 0
+	if shark.status != shark_next_status {
+		shark.anim_frame_idx = 0
+		shark.anim_time = 0
 	}
-	game_state.shark.status = shark_next_status
+	shark.status = shark_next_status
 
-	if game_state.shark.status == EntityStatus.Throw &&
-	   game_state.shark.anim_frame_idx == 4 &&
-	   game_state.shark.shark_harpoon_thrown == false {
+	if shark.status == EntityStatus.Throw &&
+	   shark.anim_frame_idx == 4 &&
+	   shark.shark_harpoon_thrown == false {
 
-		start_pos := world_pos_add(game_state.shark.pos, V3{0, 0.4, 0.5})
-		target_pos := game_state.player.pos
-		target_pos.offset.z = game_state.player.size.y
+		start_pos := world_pos_add(shark.pos, V3{0, 0.4, 0.5})
+		target_pos := player.pos
+		target_pos.offset.z = player.size.y
 		ds := relative_pos(target_pos, start_pos)
 		time :: 1.0
 		g :: V3{0, 0, -10}
 		v0 := ds / time - (g * time) / 2
 		harpoon := LowEntity {
-			pos      = world_pos_add(game_state.shark.pos, V3{0, 0.4, 0.3}),
+			pos      = world_pos_add(shark.pos, V3{0, 0.4, 0.3}),
 			type     = EntityType.Weapon,
 			size     = V2{0.2, 0.2},
 			moveable = true,
@@ -329,15 +334,14 @@ update_and_render: UpdateAndRenderProc : proc(
 			acc      = g,
 		}
 		add_entity(game_state, harpoon, game_memory)
-		game_state.shark.shark_harpoon_thrown = true
+		shark.shark_harpoon_thrown = true
 
-	} else if game_state.shark.status == EntityStatus.Throw &&
-	   game_state.shark.anim_frame_idx == 0 {
-		game_state.shark.shark_harpoon_thrown = false
+	} else if shark.status == EntityStatus.Throw && shark.anim_frame_idx == 0 {
+		shark.shark_harpoon_thrown = false
 	}
 
 	// camera追随player
-	game_state.camera_pos = game_state.player.pos
+	game_state.camera_pos = player.pos
 
 	// debug坐标轴
 	when ODIN_DEBUG {
