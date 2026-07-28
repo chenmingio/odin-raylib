@@ -485,6 +485,9 @@ render_sim_region :: proc(
 
 	for i in 0 ..< len(entities) {
 		entity := entities[i].low_entity
+
+		if entity.non_spatial {continue}
+
 		// 下面计算把worldPos（米）转换为buffer使用的坐标（pixel）
 		entity_anchor_buffer_pos := rel_pos_to_buffer_pos(entities[i].rel_pos, image_buffer)
 

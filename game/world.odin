@@ -110,3 +110,19 @@ get_world_chunk :: proc(state: ^GameState, chunkXYZ: V3i, memory: ^Memory = nil)
 	state.world.chunk_hash[h] = new_chunk
 	return new_chunk
 }
+
+set_spatial :: proc(
+	ety: ^LowEntity,
+	ety_index: u32,
+	pos: WorldPosition,
+	game_state: ^GameState,
+	game_memory: ^Memory,
+) {
+
+	ety.pos = pos
+	assert(ety.non_spatial == true)
+	ety.non_spatial = false
+	// 这个是否需要放在begin-sim里面？
+	add_entity_index_to_hash_chunk(game_state, game_memory, ety_index, pos.chunkXYZ)
+
+}

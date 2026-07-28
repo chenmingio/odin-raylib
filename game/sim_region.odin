@@ -70,20 +70,6 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory) -> SimRegion {
 	return result
 }
 
-// 自己的物品就不能和自己碰撞
-// 武器可以和别人碰撞（并计算伤害）
-shouldCollide :: proc(ety_a: ^HighEntity, ety_b: ^HighEntity) -> bool {
-	if (ety_a.low_entity.type == EntityType.Enemy && ety_b.low_entity.type == EntityType.Weapon) ||
-	   (ety_b.low_entity.type == EntityType.Enemy && ety_a.low_entity.type == EntityType.Weapon) {
-		return false
-	} else {
-		return ety_a != ety_b
-	}
-}
-
-drawCollideBody :: proc(_: HighEntity) {
-
-}
 
 high_entity_rect_center :: proc(h_e: ^HighEntity) -> V2 {
 	result := h_e.rel_pos
@@ -300,15 +286,15 @@ collide_minkowski_swept_AABB :: proc(
 }
 
 
-simulate :: proc(sim_region: ^SimRegion, dt: f32) {
+simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_memory: ^Memory) {
 	entities := sim_region.high_entities[:sim_region.high_entity_count]
 
 	// 不需要同步模拟(也就是不需要使用相对速度/加速度）
 	// a物体运动好以后，b物体在a物体移动后的状态下继续算他的运动。
 	// 不是很严谨（最后状态与ety loop次序有关），但是对于RPG这类游戏足够（kinematic mover）
-	for &ety in entities {
+	for &e_a in entities {
 		// 只有运动的物体才会碰撞改变位置，不需要对墙体做运动判断。
-		if ety.low_entity.moveable {
+		if e_a.low_entity.moveable {
 			// other是不动的。即使他是个怪物，被碰撞时，也需要保持不动。
 			// 如果是怪物碰hero，可能hero被卡住了。所以可以在shouldCollide里控制。
 
@@ -326,13 +312,13 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 			// dt = 本帧时长
 			// v1    = v0 + a * dt
 
-			// 如果没有碰撞运行的距离
+			// 如果没有碰撞，运行的距离
 			// delta = v0 * dt + 0.5 * a * dt * dt
-			dp_remaining := ety.low_entity.velocity * dt + 0.5 * ety.low_entity.acc * dt * dt
-			ety.low_entity.velocity = ety.low_entity.velocity + ety.low_entity.acc * dt
+			dp_remaining := e_a.low_entity.velocity * dt + 0.5 * e_a.low_entity.acc * dt * dt
+			e_a.low_entity.velocity = e_a.low_entity.velocity + e_a.low_entity.acc * dt
 
 			// z 方向单独处理，不参与碰撞
-			ety.rel_pos.z += dp_remaining.z
+			e_a.rel_pos.z += dp_remaining.z
 			dp_remaining.z = 0
 
 			for n in 0 ..< 4 {
@@ -340,13 +326,14 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 				nearest_hit := HitResult {
 					sweep_fraction = 1,
 				}
-				// 先找到最近的碰撞对象，计算碰撞结果
-				for &other in entities {
-					if shouldCollide(&ety, &other) {
-						hit_result := collide_minkowski_swept_AABB(&ety, &other, dp_remaining.xy)
+				// 先找到最近的碰撞对象nearest_hit，计算碰撞结果
+				for &e_b in entities {
+					// check-point-1: 有些不碰撞，比如玩家和他的武器
+					if shouldCollide(&e_a, &e_b, game_state) {
+						hit_result := collide_minkowski_swept_AABB(&e_a, &e_b, dp_remaining.xy)
 						if hit_result.hit &&
 						   (hit_result.sweep_fraction < nearest_hit.sweep_fraction) {
-							hit_result.other = &other
+							hit_result.other = &e_b
 							nearest_hit = hit_result
 						}
 					}
@@ -356,19 +343,23 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 					// debug显示碰撞箱
 					record_collision_debug(
 						&sim_region.debug_collision,
-						&ety,
+						&e_a,
 						nearest_hit.other,
 						dp_remaining.xy,
 						nearest_hit,
 					)
-					// 碰撞事件处理
-					if (ety.low_entity.type == EntityType.Weapon &&
-						   nearest_hit.other.low_entity.type == EntityType.Player) {
-						ety.to_remove = true
-						nearest_hit.other.low_entity.hit_point_left -= 1
-					} else {
+					// check-point-2: 碰撞以后有些特殊逻辑。
+					// 因为是loop循环系统，有些逻辑可以通过修改check-point-1的碰撞逻辑解决handle-collison的问题
+					// 比如碰撞过一次以后就不扣血了，但是可以变成碰撞过一次以后就不碰撞了（也不扣血了）
+					stop_on_collison := handle_collision(
+						&e_a,
+						nearest_hit.other,
+						game_state,
+						game_memory,
+					)
+					if stop_on_collison {
 						dp := dp_remaining * nearest_hit.sweep_fraction
-						ety.rel_pos += dp
+						e_a.rel_pos += dp
 
 						dp_remaining_xy :=
 							linalg.dot(
@@ -378,18 +369,80 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32) {
 							nearest_hit.surface.xy
 						dp_remaining.xy = dp_remaining_xy
 
-						ety.low_entity.velocity.xy = linalg.dot(
-							ety.low_entity.velocity.xy,
+						e_a.low_entity.velocity.xy = linalg.dot(
+							e_a.low_entity.velocity.xy,
 							nearest_hit.surface,
-						)}
+						)
+					} else {
+						// 没有碰撞
+						dp := dp_remaining
+						e_a.rel_pos += dp
+						break
+					}
 				} else {
 					// 没有碰撞
 					dp := dp_remaining
-					ety.rel_pos += dp
+					e_a.rel_pos += dp
 					break
-				}}
+				}
+			}
 		}
 	}
+}
+
+// general rule + pairwise rule
+// general rules:
+// pairwise-based-rules:
+// 0. 默认为true
+// 1. 武器和owner记录下来为false，不会碰撞（这条可以转化为owner check）
+// 2. 伤害过一次就记录下来为false，下次不会重复碰撞
+//
+shouldCollide :: proc(ety_a: ^HighEntity, ety_b: ^HighEntity, state: ^GameState) -> bool {
+	if (ety_a == ety_b) {
+		return false
+	}
+
+	rule := get_collision_rule(
+		ety_a.low_entity_storage_index,
+		ety_b.low_entity_storage_index,
+		state,
+	)
+	if rule != nil {
+		return rule.can_collide
+	} else {
+		return true
+	}
+}
+
+// 目前返回stop_on_collison。但其实可以返回多个碰撞后的信息/event（是否停止？是否受伤？等等）
+handle_collision :: proc(
+	e_a: ^HighEntity,
+	e_b: ^HighEntity,
+	state: ^GameState,
+	memory: ^Memory,
+) -> bool {
+	// 碰撞事件处理
+	// pairwise-based-rule-2:不能重复碰撞
+	weapon_vs_player :=
+		(e_a.low_entity.type == EntityType.Weapon && e_b.low_entity.type == EntityType.Player) ||
+		(e_b.low_entity.type == EntityType.Weapon && e_a.low_entity.type == EntityType.Player)
+	if (weapon_vs_player) {
+		weapon := (e_a.low_entity.type == EntityType.Weapon) ? e_a : e_b
+		player := (e_a.low_entity.type == EntityType.Player) ? e_a : e_b
+
+		player.low_entity.hit_point_left -= 1
+		add_collision_rule(
+			weapon.low_entity_storage_index,
+			player.low_entity_storage_index,
+			false,
+			state,
+			memory,
+		)
+		// 武器和人物碰撞后不停止
+		return false
+	}
+	// 默认停止
+	return true
 }
 
 // 模拟的浮点坐标转换为low entity的低精度坐标
@@ -417,7 +470,6 @@ reIndex :: proc(
 
 	if (remove) {
 		remove_entity_index_from_hash_chunk(low_entity_storage_index, old_chunk, state)
-		remove_entity_from_entity_list(state, low_entity_storage_index)
 		return
 	}
 
@@ -428,23 +480,35 @@ reIndex :: proc(
 
 	remove_entity_index_from_hash_chunk(low_entity_storage_index, old_chunk, state)
 	add_entity_index_to_hash_chunk(state, memory, low_entity_storage_index, new_pos.chunkXYZ)
-
 }
 
 // 把计算好的high entity对应的状态（目前是未知）更新回原来的low entity
 end_sim :: proc(state: ^GameState, sim_region: ^SimRegion, memory: ^Memory) {
 	high_entities := sim_region.high_entities[:sim_region.high_entity_count]
 	for high_entity in high_entities {
+		low_entity := high_entity.low_entity
 		new_pos := world_pos_add_rel(high_entity.rel_pos, state.camera_pos)
+		old_pos := low_entity.pos
+
+		// 武器命中以后需要回收重置
+		if low_entity.type == EntityType.Weapon &&
+		   linalg.length(relative_pos(low_entity.target_pos, new_pos)) < 0.1 {
+			low_entity.non_spatial = true
+			remove_entity_collison_rule(high_entity.low_entity_storage_index, state)
+		}
+		// 调整entity在chunk hash里的位置
 		reIndex(
-			high_entity.low_entity,
+			low_entity,
 			high_entity.low_entity_storage_index,
 			new_pos,
 			state,
 			memory,
-			// 不用删除high_entity?
-			high_entity.to_remove,
+			low_entity.non_spatial,
 		)
-		high_entity.low_entity.pos = new_pos
+
+		// 对于需要真正删除的entity，还需要从entity list里移除
+		//remove_entity_from_entity_list(state, high_entity.low_entity_storage_index)
+		low_entity.pos = new_pos
+
 	}
 }

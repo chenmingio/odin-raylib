@@ -56,25 +56,33 @@ next_status :: proc(
 	return .Idle
 }
 
+CollisionRule :: struct {
+	entity_a:    u32,
+	entity_b:    u32,
+	can_collide: bool,
+	next:        ^CollisionRule,
+}
 
 GameState :: struct {
-	camera_pos:              WorldPosition,
-	player_entity_index:     u32,
-	shark_entity_index:      u32,
-	entities:                [10000]LowEntity,
-	entity_count:            u32,
-	free_entity_index_list:  [10000]u32,
-	free_entity_index_count: u32,
-	background:              ^image.Image,
-	unit_animate_assets:     AseSpriteAsset,
-	unit_animate:            Animation,
-	harpoon_shark_assets:    AseSpriteAsset, // asset package parsed
-	harpoon_shark_animation: Animation, // animation and config
-	harpoon_sprite:          Sprite, // image and config
-	tilemap1:                ^image.Image,
-	game_map:                [tileMapY][tileMapX]V2i,
-	rock_images:             [4]^image.Image,
-	world:                   World,
+	camera_pos:                WorldPosition,
+	player:                    u32,
+	shark:                     u32,
+	entities:                  [10000]LowEntity,
+	entity_count:              u32,
+	free_entity_index_list:    [10000]u32,
+	free_entity_index_count:   u32,
+	background:                ^image.Image,
+	unit_animate_assets:       AseSpriteAsset,
+	unit_animate:              Animation,
+	harpoon_shark_assets:      AseSpriteAsset, // asset package parsed
+	harpoon_shark_animation:   Animation, // animation and config
+	harpoon_sprite:            Sprite, // image and config
+	tilemap1:                  ^image.Image,
+	game_map:                  [tileMapY][tileMapX]V2i,
+	rock_images:               [4]^image.Image,
+	world:                     World,
+	collision_rule_hash:       [256]^CollisionRule,
+	first_free_collision_rule: ^CollisionRule,
 }
 
 CorppedImage :: struct {
@@ -169,11 +177,10 @@ update_and_render: UpdateAndRenderProc : proc(
 			hit_point_total = 3,
 			hit_point_left  = 1,
 		}
-		add_entity(game_state, player, game_memory)
-		game_state.player_entity_index = 0
+		game_state.player = add_entity(game_state, player, game_memory)
 
 		//一个敌人
-		shark := LowEntity {
+		new_shark := LowEntity {
 			pos             = WorldPosition{V3i{0, 0, 0}, V3{-2, -2, 0}},
 			type            = EntityType.Enemy,
 			size            = V2{0.5, 0.6},
@@ -183,8 +190,19 @@ update_and_render: UpdateAndRenderProc : proc(
 			hit_point_total = 3,
 			hit_point_left  = 3,
 		}
-		add_entity(game_state, shark, game_memory)
-		game_state.shark_entity_index = 1
+		game_state.shark = add_entity(game_state, new_shark, game_memory)
+		shark := get_entity(game_state, game_state.shark)
+
+		harpoon := LowEntity {
+			pos         = world_pos_add(new_shark.pos, V3{0, 0.4, 0.3}),
+			type        = EntityType.Weapon,
+			size        = V2{0.2, 0.2},
+			moveable    = true,
+			non_spatial = true,
+			owner       = game_state.shark,
+		}
+
+		shark.weapon = add_entity(game_state, harpoon, game_memory)
 
 		// 初始化地图
 		for i in 1 ..< 7 {
@@ -271,7 +289,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		move += V3{1, 0, 0}
 	}
 
-	player := get_entity(game_state, game_state.player_entity_index)
+	player := get_entity(game_state, game_state.player)
 	// player 运动模拟
 	player_rfd :: 10.0 //深蹲重量/体重
 
@@ -293,14 +311,14 @@ update_and_render: UpdateAndRenderProc : proc(
 	}
 	player.status = next_status
 
-
-	shark := get_entity(game_state, game_state.shark_entity_index)
-
 	// shark运动输入
+	shark := get_entity(game_state, game_state.shark)
+	harpoon := get_entity(game_state, shark.weapon)
 	shark_rfd :: 5
 	distance_to_player := relative_pos(player.pos, shark.pos)
 	shark_next_status :=
 		math.abs(linalg.length(shark.velocity)) > 0.01 ? EntityStatus.Run : EntityStatus.Idle
+	// 开始攻击
 	if linalg.length(distance_to_player) < 5 {
 		//shark.acc = linalg.normalize(distance_to_player.xy) * shark_rfd - shark.velocity * 5
 		shark_next_status = EntityStatus.Throw
@@ -314,27 +332,33 @@ update_and_render: UpdateAndRenderProc : proc(
 	}
 	shark.status = shark_next_status
 
+	// 攻击时，把non-spatial的武器装载状态，加入hash-chunk，设置为spatial
 	if shark.status == EntityStatus.Throw &&
 	   shark.anim_frame_idx == 4 &&
-	   shark.shark_harpoon_thrown == false {
+	   harpoon.non_spatial == true {
 
 		start_pos := world_pos_add(shark.pos, V3{0, 0.4, 0.5})
 		target_pos := player.pos
-		target_pos.offset.z = player.size.y
+		target_pos.offset.z = player.size.y / 2 //假设size.y/2不超过chunk size
 		ds := relative_pos(target_pos, start_pos)
-		time :: 1.0
+		time :: 0.6 //thrown的动画耗时0.7秒。如果0.6里不能回收武器，下一次会变成空投。
 		g :: V3{0, 0, -10}
 		v0 := ds / time - (g * time) / 2
-		harpoon := LowEntity {
-			pos      = world_pos_add(shark.pos, V3{0, 0.4, 0.3}),
-			type     = EntityType.Weapon,
-			size     = V2{0.2, 0.2},
-			moveable = true,
-			velocity = v0,
-			acc      = g,
-		}
-		add_entity(game_state, harpoon, game_memory)
+
+		harpoon.acc = g
+		harpoon.velocity = v0
+		harpoon.target_pos = target_pos
+		set_spatial(harpoon, shark.weapon, start_pos, game_state, game_memory)
+
 		shark.shark_harpoon_thrown = true
+
+		add_collision_rule(
+			game_state.shark,
+			get_entity(game_state, game_state.shark).weapon,
+			false,
+			game_state,
+			game_memory,
+		)
 
 	} else if shark.status == EntityStatus.Throw && shark.anim_frame_idx == 0 {
 		shark.shark_harpoon_thrown = false
@@ -361,14 +385,97 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	// 准备好初始条件（物体，初始速度）以后，开始区域计算模拟
 	sim_region := begin_sim(game_state, game_memory)
-	simulate(&sim_region, time_span)
+	simulate(&sim_region, time_span, game_state, game_memory)
 	render_sim_region(&sim_region, image_buffer, game_state, time_span)
 	when ODIN_DEBUG {
 		draw_collision_debug(sim_region.debug_collision, image_buffer)
 	}
 	end_sim(game_state, &sim_region, game_memory)
+}
+
+collison_rule_hash :: proc(ety_a: u32, ety_b: u32) -> (u32, u32, u32) {
+	min_ety_index := math.min(ety_a, ety_b)
+	max_ety_index := math.max(ety_a, ety_b)
+	hash := min_ety_index % 256
+	return min_ety_index, max_ety_index, hash
+}
 
 
+get_collision_rule :: proc(ety_a: u32, ety_b: u32, state: ^GameState) -> ^CollisionRule {
+	min_ety_index, max_ety_index, hash := collison_rule_hash(ety_a, ety_b)
+	bucket := state.collision_rule_hash[hash]
+	for rule := bucket; rule != nil; rule = rule.next {
+		if rule.entity_a == min_ety_index && rule.entity_b == max_ety_index {
+			return rule
+		}
+	}
+	return nil
+}
+
+// find a place in memory to store rule (free list or new memory location)
+new_collison_rule :: proc(state: ^GameState, memory: ^Memory) -> ^CollisionRule {
+	result: ^CollisionRule
+	first_free := state.first_free_collision_rule
+	if first_free != nil {
+		state.first_free_collision_rule = first_free.next
+		result = first_free
+	} else {
+		result = new(CollisionRule, memory.perm_alloc)
+	}
+	return result
+}
+
+// 查重/幂等
+add_collision_rule :: proc(
+	ety_a: u32,
+	ety_b: u32,
+	can_collide: bool,
+	state: ^GameState,
+	memory: ^Memory,
+) {
+	min_ety_index, max_ety_index, hash := collison_rule_hash(ety_a, ety_b)
+	// try to get rule if already exist
+	test := get_collision_rule(ety_a, ety_b, state)
+	if (test != nil) {
+		test.can_collide = can_collide
+		return
+	}
+
+	// get store location
+	new_rule := new_collison_rule(state, memory)
+
+	// add rule to bucket-rule-chain's head
+	bucket: ^CollisionRule = state.collision_rule_hash[hash]
+	state.collision_rule_hash[hash] = new_rule
+
+	new_rule^ = CollisionRule{min_ety_index, max_ety_index, can_collide, bucket}
+}
+
+remove_entity_collison_rule :: proc(ety: u32, state: ^GameState) {
+	for hash in 0 ..< len(state.collision_rule_hash) {
+		// 不常见的技巧
+		// link指向hash的bucket的地址本身，而不是bucket地址内的rule地址。
+		// link语义上我们把他指向“储存rule的容器”本身，而不是“rule”。
+		// 这样可以解决prev的问题（link相当于prev的next，让你可以修改prev的next）
+		// link^就是“容器内储存的rule”
+		link := &state.collision_rule_hash[hash]
+		for link^ != nil {
+			rule := link^
+			if rule.entity_a == ety || rule.entity_b == ety {
+				// 把容器内存上“link里当前rule的下一个rule的地址”
+				link^ = rule^.next
+				// 清空内容
+				rule^ = CollisionRule{}
+
+				// 回收rule到free list
+				first_free := state.first_free_collision_rule
+				state.first_free_collision_rule = rule
+				rule.next = first_free
+			} else {
+				link = &link^.next
+			}
+		}
+	}
 }
 
 @(export)

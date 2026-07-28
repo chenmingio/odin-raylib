@@ -50,19 +50,24 @@ name_to_entity_status :: proc(name: string) -> (EntityStatus, bool) {
 }
 
 LowEntity :: struct {
-	pos:                  WorldPosition,
-	type:                 EntityType,
-	size:                 V2,
-	status:               EntityStatus,
-	anim_frame_idx:       i32,
-	anim_time:            i32, // ms,当前frame花了多少时间，在切换frame以后清零
-	direction:            Direction,
-	moveable:             bool, //是否移动，比如墙就不能移动
-	velocity:             V3,
-	acc:                  V3,
-	hit_point_total:      i32,
-	hit_point_left:       i32,
-	shark_harpoon_thrown: bool,
+	pos:                   WorldPosition,
+	type:                  EntityType,
+	size:                  V2,
+	status:                EntityStatus,
+	anim_frame_idx:        i32,
+	anim_time:             i32, // ms,当前frame花了多少时间，在切换frame以后清零
+	direction:             Direction,
+	moveable:              bool, //是否移动，比如墙就不能移动
+	non_spatial:           bool, //是否render
+	velocity:              V3,
+	acc:                   V3,
+	hit_point_total:       i32,
+	hit_point_left:        i32,
+	shark_harpoon_thrown:  bool,
+	owner:                 u32,
+	weapon:                u32,
+	target_pos:            WorldPosition,
+	flight_time_remaining: f32,
 }
 
 HighEntity :: struct {
@@ -93,6 +98,7 @@ add_entity_index_to_hash_chunk :: proc(
 	chunkPos: V3i,
 ) {
 	chunk := get_world_chunk(state, chunkPos, memory)
+	// 是否需要检查entity index已经存在chunk-block里了？
 
 	// 如果正好满了，需要新建一个block作为first block放在顶部
 	if chunk.first_block.entity_count == 16 {
@@ -151,7 +157,7 @@ remove_entity_from_entity_list :: proc(state: ^GameState, index: u32) {
 }
 
 
-add_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) {
+add_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) -> u32 {
 	// get entity index
 	entity_index: u32
 	if state.free_entity_index_count > 0 {
@@ -160,13 +166,16 @@ add_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) {
 	} else {
 		entity_index = state.entity_count
 		state.entity_count += 1
-
 	}
 
-	// 添加entity数据储存
+	// entity内容储存
 	state.entities[entity_index] = entity
-	// 添加entity index
-	add_entity_index_to_hash_chunk(state, memory, entity_index, entity.pos.chunkXYZ)
+
+	// 添加entity chunk index
+	if !entity.non_spatial {
+		add_entity_index_to_hash_chunk(state, memory, entity_index, entity.pos.chunkXYZ)
+	}
+	return entity_index
 }
 
 get_entity :: proc(state: ^GameState, index: u32) -> ^LowEntity {
