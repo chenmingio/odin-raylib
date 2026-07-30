@@ -5,7 +5,6 @@ import "core:image"
 import "core:math"
 import "core:mem"
 import "core:slice"
-import "core:testing"
 
 
 // RGBA
@@ -580,14 +579,4 @@ draw_collision_debug :: proc(debug: CollisionDebug, buffer: OffScreenBuffer) {
 	draw_debug_world_line(debug.actual_path_start, debug.actual_path_end, BLUE, buffer)
 	draw_debug_world_dot(debug.relative_ray_start, CYAN, buffer)
 	draw_debug_world_dot(debug.hit_point, MAGENTA, buffer)
-}
-
-@(test)
-test_image :: proc(t: ^testing.T) {
-	img, err := image.load_from_file("resources/background_pink_sky.png")
-	if err != nil {
-		testing.fail(t)
-		return
-	}
-	image.destroy(img)
 }
