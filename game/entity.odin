@@ -105,7 +105,7 @@ add_entity_index_to_hash_chunk :: proc(
 
 	// 如果正好满了，需要新建一个block作为first block放在顶部
 	if chunk.first_block.entity_count == 16 {
-		new_block := get_new_block(&state.world, memory)
+		new_block := get_new_block(state.world, memory)
 		new_block.next = chunk.first_block
 		chunk.first_block = new_block
 	}
@@ -176,6 +176,7 @@ add_low_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) ->
 
 	// 添加entity chunk index
 	if !entity.non_spatial {
+		pos := canonicalize(entity.pos, state.world)
 		add_entity_index_to_hash_chunk(state, memory, entity_index, entity.pos.chunkXYZ)
 	}
 	return entity_index

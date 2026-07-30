@@ -54,7 +54,11 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory) -> SimRegion {
 						high_entity := SimEntity {
 							low_entity    = low_entity,
 							storage_index = low_entity_storage_id,
-							p             = relative_pos(low_entity.pos, state.camera_p),
+							p             = relative_pos(
+								low_entity.pos,
+								state.camera_p,
+								state.world.chunk_dim_in_meters,
+							),
 						}
 						assert(result.entity_count < len(result.entities))
 						result.entities[result.entity_count] = high_entity
@@ -433,13 +437,17 @@ handle_collision :: proc(
 }
 
 // 模拟的浮点坐标转换为low entity的低精度坐标
-map_into_chunk_space :: proc(rel_pos: [3]f32, camera_pos: WorldPosition) -> WorldPosition {
+map_into_chunk_space :: proc(
+	rel_pos: [3]f32,
+	camera_pos: WorldPosition,
+	chunk_dim_in_meters: V3,
+) -> WorldPosition {
 	result := camera_pos
 	result.offset.x += rel_pos.x
 	result.offset.y += rel_pos.y
 	result.offset.z += rel_pos.z
 
-	return canonicalize(result)
+	return canonicalize(result, chunk_dim_in_meters)
 }
 
 // 重新放置low entity的chunk位置
@@ -474,7 +482,11 @@ end_sim :: proc(state: ^GameState, sim_region: ^SimRegion, memory: ^Memory) {
 	high_entities := sim_region.entities[:sim_region.entity_count]
 	for high_entity in high_entities {
 		low_entity := high_entity.low_entity
-		new_pos := map_into_chunk_space(high_entity.p, state.camera_p)
+		new_pos := map_into_chunk_space(
+			high_entity.p,
+			state.camera_p,
+			state.world.chunk_dim_in_meters,
+		)
 		old_pos := low_entity.pos
 
 		// 武器命中以后需要回收重置
