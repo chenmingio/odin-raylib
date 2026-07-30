@@ -24,14 +24,14 @@ World :: struct {
 	first_free_entity_block: ^WorldEntityBlock,
 }
 
-world_pos :: proc(chunk_xyz: V3i, offset: V3, world: ^World) -> WorldPosition {
-	return canonicalize(WorldPosition{chunk_xyz, offset}, world.chunk_dim_in_meters)
+world_pos :: proc(world: ^World, chunk_xyz: V3i, offset: V3) -> WorldPosition {
+	return canonicalize(world, WorldPosition{chunk_xyz, offset})
 }
 
 // 目前使用offset坐标原点在chunk的左下角的关系。offset区间为[0, chunkSide)
 // Casey的设计，rel的原点在chunk中点
 
-is_canonical :: proc(p: WorldPosition, world: ^World) -> bool {
+is_canonical :: proc(world: ^World, p: WorldPosition) -> bool {
 	chunk_dim_in_meters := world.chunk_dim_in_meters
 	return(
 		p.offset.x >= 0 &&
@@ -63,7 +63,8 @@ canonicalize_axis :: proc(chunk: i32, offset: f32, chunk_side_in_meters: f32) ->
 	return new_chunk, new_offset
 }
 
-canonicalize :: proc(p: WorldPosition, chunk_dim_in_meters: V3) -> WorldPosition {
+canonicalize :: proc(world: ^World, p: WorldPosition) -> WorldPosition {
+	chunk_dim_in_meters := world.chunk_dim_in_meters
 	xc, xo := canonicalize_axis(p.chunkXYZ.x, p.offset.x, chunk_dim_in_meters.x)
 	yc, yo := canonicalize_axis(p.chunkXYZ.y, p.offset.y, chunk_dim_in_meters.y)
 	zc, zo := canonicalize_axis(p.chunkXYZ.z, p.offset.z, chunk_dim_in_meters.z)
@@ -71,7 +72,8 @@ canonicalize :: proc(p: WorldPosition, chunk_dim_in_meters: V3) -> WorldPosition
 	return WorldPosition{V3i{xc, yc, zc}, V3{xo, yo, zo}}
 }
 
-relative_pos :: proc(p1, p2: WorldPosition, chunk_dim_in_meters: V3) -> V3 {
+relative_pos :: proc(world: ^World, p1, p2: WorldPosition) -> V3 {
+	chunk_dim_in_meters := world.chunk_dim_in_meters
 	delta_chunk := p1.chunkXYZ - p2.chunkXYZ
 	delta_offset := V3 {
 		f32(delta_chunk.x) * chunk_dim_in_meters.x,
@@ -81,10 +83,10 @@ relative_pos :: proc(p1, p2: WorldPosition, chunk_dim_in_meters: V3) -> V3 {
 	return delta_offset + p1.offset - p2.offset
 }
 
-world_pos_add :: proc(p: WorldPosition, d: V3, chunk_dim_in_meters: V3) -> WorldPosition {
+world_pos_add :: proc(world: ^World, p: WorldPosition, d: V3) -> WorldPosition {
 	p := p
 	p.offset += d
-	return canonicalize(p, chunk_dim_in_meters)
+	return canonicalize(world, p)
 }
 
 hashChunk :: proc(xyz: V3i) -> i32 {
@@ -107,9 +109,9 @@ get_new_block :: proc(world: ^World, memory: ^Memory) -> ^WorldEntityBlock {
 
 // 纯读取xyz所在的chunk：不传memory
 // 获取xyz的chunk用来储存，必要时创建新的chunk/block：需要传memory
-get_world_chunk :: proc(state: ^GameState, chunkXYZ: V3i, memory: ^Memory = nil) -> ^WorldChunk {
+get_world_chunk :: proc(world: ^World, chunkXYZ: V3i, memory: ^Memory = nil) -> ^WorldChunk {
 	h := hashChunk(chunkXYZ)
-	head := state.world.chunk_hash[h]
+	head := world.chunk_hash[h]
 	// 如果通过链表找到符合XYZ的chunk，直接返回
 	for c := head; c != nil; c = c.next_in_hash {
 		if c.chunkXYZ == chunkXYZ {
@@ -121,11 +123,11 @@ get_world_chunk :: proc(state: ^GameState, chunkXYZ: V3i, memory: ^Memory = nil)
 	// 需要新建chunk的情况
 	assert(memory != nil, "memory should be available for chunk creation")
 	new_chunk := new(WorldChunk, memory.perm_alloc)
-	new_block := get_new_block(state.world, memory)
+	new_block := get_new_block(world, memory)
 	new_chunk^ = WorldChunk{new_block, chunkXYZ, nil}
 
-	new_chunk.next_in_hash = state.world.chunk_hash[h]
-	state.world.chunk_hash[h] = new_chunk
+	new_chunk.next_in_hash = world.chunk_hash[h]
+	world.chunk_hash[h] = new_chunk
 	return new_chunk
 }
 
@@ -136,9 +138,9 @@ make_entity_spatial :: proc(
 	game_state: ^GameState,
 	game_memory: ^Memory,
 ) {
-
-	ety.pos = pos
+	canonical_pos := canonicalize(game_state.world, pos)
+	ety.pos = canonical_pos
 	assert(ety.non_spatial == true)
 	ety.non_spatial = false
-	add_entity_index_to_hash_chunk(game_state, game_memory, ety_index, pos.chunkXYZ)
+	add_entity_index_to_hash_chunk(game_state, game_memory, ety_index, canonical_pos.chunkXYZ)
 }

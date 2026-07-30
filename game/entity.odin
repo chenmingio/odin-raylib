@@ -100,7 +100,7 @@ add_entity_index_to_hash_chunk :: proc(
 	entity_index: u32,
 	chunkPos: V3i,
 ) {
-	chunk := get_world_chunk(state, chunkPos, memory)
+	chunk := get_world_chunk(state.world, chunkPos, memory)
 	// 是否需要检查entity index已经存在chunk-block里了？
 
 	// 如果正好满了，需要新建一个block作为first block放在顶部
@@ -171,13 +171,15 @@ add_low_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) ->
 		state.low_entity_count += 1
 	}
 
-	// entity内容储存
-	state.low_entities[entity_index] = entity
+	stored_entity := entity
+	if !entity.non_spatial {
+		stored_entity.pos = canonicalize(state.world, stored_entity.pos)
+	}
+	state.low_entities[entity_index] = stored_entity
 
 	// 添加entity chunk index
-	if !entity.non_spatial {
-		pos := canonicalize(entity.pos, state.world)
-		add_entity_index_to_hash_chunk(state, memory, entity_index, entity.pos.chunkXYZ)
+	if !stored_entity.non_spatial {
+		add_entity_index_to_hash_chunk(state, memory, entity_index, stored_entity.pos.chunkXYZ)
 	}
 	return entity_index
 }

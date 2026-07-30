@@ -44,7 +44,7 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory) -> SimRegion {
 	for x in state.camera_p.chunkXYZ.x - 10 ..< state.camera_p.chunkXYZ.x + 10 {
 		for y in state.camera_p.chunkXYZ.y - 5 ..< state.camera_p.chunkXYZ.y + 5 {
 			for z in state.camera_p.chunkXYZ.z ..< state.camera_p.chunkXYZ.z + 1 {
-				chunk := get_world_chunk(state, V3i{x, y, z}, memory)
+				chunk := get_world_chunk(state.world, V3i{x, y, z}, memory)
 				assert(chunk != nil)
 
 				// copy entity values into SimRegion
@@ -54,11 +54,7 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory) -> SimRegion {
 						high_entity := SimEntity {
 							low_entity    = low_entity,
 							storage_index = low_entity_storage_id,
-							p             = relative_pos(
-								low_entity.pos,
-								state.camera_p,
-								state.world.chunk_dim_in_meters,
-							),
+							p             = relative_pos(state.world, low_entity.pos, state.camera_p),
 						}
 						assert(result.entity_count < len(result.entities))
 						result.entities[result.entity_count] = high_entity
@@ -437,17 +433,13 @@ handle_collision :: proc(
 }
 
 // 模拟的浮点坐标转换为low entity的低精度坐标
-map_into_chunk_space :: proc(
-	rel_pos: [3]f32,
-	camera_pos: WorldPosition,
-	chunk_dim_in_meters: V3,
-) -> WorldPosition {
+map_into_chunk_space :: proc(world: ^World, rel_pos: [3]f32, camera_pos: WorldPosition) -> WorldPosition {
 	result := camera_pos
 	result.offset.x += rel_pos.x
 	result.offset.y += rel_pos.y
 	result.offset.z += rel_pos.z
 
-	return canonicalize(result, chunk_dim_in_meters)
+	return canonicalize(world, result)
 }
 
 // 重新放置low entity的chunk位置
@@ -460,7 +452,7 @@ change_entity_location :: proc(
 	remove: bool,
 ) {
 	oldPos := low_entity.pos
-	old_chunk := get_world_chunk(state, oldPos.chunkXYZ, memory)
+	old_chunk := get_world_chunk(state.world, oldPos.chunkXYZ, memory)
 	assert(old_chunk != nil)
 
 	if (remove) {
@@ -482,11 +474,7 @@ end_sim :: proc(state: ^GameState, sim_region: ^SimRegion, memory: ^Memory) {
 	high_entities := sim_region.entities[:sim_region.entity_count]
 	for high_entity in high_entities {
 		low_entity := high_entity.low_entity
-		new_pos := map_into_chunk_space(
-			high_entity.p,
-			state.camera_p,
-			state.world.chunk_dim_in_meters,
-		)
+		new_pos := map_into_chunk_space(state.world, high_entity.p, state.camera_p)
 		old_pos := low_entity.pos
 
 		// 武器命中以后需要回收重置

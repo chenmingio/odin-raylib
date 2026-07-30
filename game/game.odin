@@ -173,7 +173,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		// 初始化玩家
 		// 以米为单位
 		player := LowEntity {
-			pos             = world_pos(V3i{0, 0, 0}, V3{0, 0, 0}, world),
+			pos             = world_pos(world, V3i{0, 0, 0}, V3{0, 0, 0}),
 			type            = EntityType.Player,
 			size            = V2{0.6, 0.7},
 			status          = EntityStatus.Idle,
@@ -199,11 +199,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		shark := get_low_entity(game_state, game_state.shark)
 
 		harpoon := LowEntity {
-			pos         = world_pos_add(
-				new_shark.pos,
-				V3{0, 0.4, 0.3},
-				game_state.world.chunk_dim_in_meters,
-			),
+			pos         = world_pos_add(game_state.world, new_shark.pos, V3{0, 0.4, 0.3}),
 			type        = EntityType.Weapon,
 			size        = V2{0.2, 0.2},
 			moveable    = true,
@@ -340,11 +336,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		for x in -10 ..< 10 {
 			for y in -10 ..< 10 {
 				chunkanchor := WorldPosition{V3i{i32(x), i32(y), 0}, 0}
-				rel_pos := relative_pos(
-					chunkanchor,
-					game_state.camera_p,
-					game_state.world.chunk_dim_in_meters,
-				)
+				rel_pos := relative_pos(game_state.world, chunkanchor, game_state.camera_p)
 				buffer_pos := rel_pos_to_buffer_pos(rel_pos, image_buffer)
 				draw_dot(buffer_pos, image_buffer)
 			}
@@ -372,7 +364,7 @@ update_shark_state :: proc(
 	shark_rfd := 5
 
 	player := get_low_entity(game_state, game_state.player)
-	distance_to_player := relative_pos(player.pos, shark.pos, game_state.world.chunk_dim_in_meters)
+	distance_to_player := relative_pos(game_state.world, player.pos, shark.pos)
 
 	// 更新entity status
 	// 默认Idel/Run
@@ -405,14 +397,10 @@ update_shark_state :: proc(
 	   shark.anim_elapsed_time > 400 &&
 	   harpoon.non_spatial == true {
 
-		start_pos := world_pos_add(
-			shark.pos,
-			V3{0, 0.4, 0.5},
-			game_state.world.chunk_dim_in_meters,
-		)
+		start_pos := world_pos_add(game_state.world, shark.pos, V3{0, 0.4, 0.5})
 		target_pos := player.pos
 		target_pos.offset.z = player.size.y / 2 //假设size.y/2不超过chunk size
-		ds := relative_pos(target_pos, start_pos, game_state.world.chunk_dim_in_meters)
+		ds := relative_pos(game_state.world, target_pos, start_pos)
 		t :: 0.8
 		g :: V3{0, 0, -10}
 		v0 := ds / t - (g * t) / 2
