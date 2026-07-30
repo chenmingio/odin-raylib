@@ -423,7 +423,7 @@ draw_sprite :: proc(
 ) {
 	top_left_pos := dest_buffer_pos
 	z_scale :: 1
-	screen_velocity := V2{entity.velocity.x, -(entity.velocity.y + entity.velocity.z * z_scale)}
+	screen_velocity := V2{entity.dp.x, -(entity.dp.y + entity.dp.z * z_scale)}
 	draw_image_rotated(
 		top_left_pos,
 		sprite.image,
@@ -469,10 +469,10 @@ render_sim_region :: proc(
 	sim_region: ^SimRegion,
 	image_buffer: OffScreenBuffer,
 	game_state: ^GameState,
-	time_span: f32,
+	dt: f32,
 ) {
 
-	entities := sim_region.high_entities[:sim_region.high_entity_count]
+	entities := sim_region.entities[:sim_region.entity_count]
 
 	for i in 0 ..< len(entities) {
 		entity := entities[i].low_entity
@@ -480,7 +480,7 @@ render_sim_region :: proc(
 		if entity.non_spatial {continue}
 
 		// 下面计算把worldPos（米）转换为buffer使用的坐标（pixel）
-		entity_anchor_buffer_pos := rel_pos_to_buffer_pos(entities[i].rel_pos, image_buffer)
+		entity_anchor_buffer_pos := rel_pos_to_buffer_pos(entities[i].p, image_buffer)
 
 		// 玩家帧尺寸 or 一般实体尺寸（米→像素）
 		entity_size_px := V2i {
@@ -504,7 +504,7 @@ render_sim_region :: proc(
 				game_state.unit_animate,
 				entity,
 				image_buffer,
-				time_span,
+				dt,
 			)
 			draw_entity_hit_point(
 				entity_anchor_buffer_pos,
@@ -528,7 +528,7 @@ render_sim_region :: proc(
 				game_state.harpoon_shark_animation,
 				entity,
 				image_buffer,
-				time_span,
+				dt,
 			)
 		case .Weapon:
 			draw_sprite(
@@ -536,7 +536,7 @@ render_sim_region :: proc(
 				game_state.harpoon_sprite,
 				entity,
 				image_buffer,
-				time_span,
+				dt,
 			)
 		case .Null:
 			break

@@ -56,19 +56,19 @@ next_player_status :: proc(
 	return .Idle
 }
 
-CollisionRule :: struct {
+PairwiseCollisionRule :: struct {
 	entity_a:    u32,
 	entity_b:    u32,
 	can_collide: bool,
-	next:        ^CollisionRule,
+	next:        ^PairwiseCollisionRule,
 }
 
 GameState :: struct {
-	camera_pos:                WorldPosition,
+	camera_p:                  WorldPosition,
 	player:                    u32,
 	shark:                     u32,
-	entities:                  [10000]LowEntity,
-	entity_count:              u32,
+	low_entities:              [10000]LowEntity,
+	low_entity_count:          u32,
 	free_entity_index_list:    [10000]u32,
 	free_entity_index_count:   u32,
 	background:                ^image.Image,
@@ -81,8 +81,8 @@ GameState :: struct {
 	game_map:                  [tileMapY][tileMapX]V2i,
 	rock_images:               [4]^image.Image,
 	world:                     World,
-	collision_rule_hash:       [256]^CollisionRule,
-	first_free_collision_rule: ^CollisionRule,
+	collision_rule_hash:       [256]^PairwiseCollisionRule,
+	first_free_collision_rule: ^PairwiseCollisionRule,
 }
 
 CorppedImage :: struct {
@@ -121,7 +121,7 @@ UpdateAndRenderProc :: #type proc(
 	memory: ^Memory,
 	input: Input,
 	image_buffer: OffScreenBuffer,
-	time_span: f32,
+	dt: f32,
 )
 
 GetSoundSamplesProc :: #type proc(game_memory: ^Memory, sound_buffer: ^SoundOutputBuffer)
@@ -131,7 +131,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	game_memory: ^Memory,
 	input: Input,
 	image_buffer: OffScreenBuffer,
-	time_span: f32,
+	dt: f32,
 ) {
 	rand.reset(12345)
 	// 之前以为不能premanent_storage直接拿来用，其实是可以的。
@@ -140,7 +140,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	if !game_memory.is_initialized {
 		// 初始化工作
 		// 设置初始相机位置
-		game_state.camera_pos = WorldPosition{V3i{}, V3{}}
+		game_state.camera_p = WorldPosition{V3i{}, V3{}}
 		// 地图
 		for y in 0 ..< tileMapY {
 			for x in 0 ..< tileMapX {
@@ -177,7 +177,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			hit_point_total = 3,
 			hit_point_left  = 1,
 		}
-		game_state.player = add_entity(game_state, player, game_memory)
+		game_state.player = add_low_entity(game_state, player, game_memory)
 
 		//一个敌人
 		new_shark := LowEntity {
@@ -190,8 +190,8 @@ update_and_render: UpdateAndRenderProc : proc(
 			hit_point_total = 3,
 			hit_point_left  = 3,
 		}
-		game_state.shark = add_entity(game_state, new_shark, game_memory)
-		shark := get_entity(game_state, game_state.shark)
+		game_state.shark = add_low_entity(game_state, new_shark, game_memory)
+		shark := get_low_entity(game_state, game_state.shark)
 
 		harpoon := LowEntity {
 			pos         = world_pos_add(new_shark.pos, V3{0, 0.4, 0.3}),
@@ -202,7 +202,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			owner       = game_state.shark,
 		}
 
-		shark.weapon = add_entity(game_state, harpoon, game_memory)
+		shark.weapon = add_low_entity(game_state, harpoon, game_memory)
 
 		// 初始化地图
 		for i in 1 ..< 7 {
@@ -211,7 +211,7 @@ update_and_render: UpdateAndRenderProc : proc(
 				type = EntityType.Wall,
 				size = V2{wall_size, wall_size},
 			}
-			add_entity(game_state, entity, game_memory)
+			add_low_entity(game_state, entity, game_memory)
 		}
 		// 石头
 		for i in 0 ..< 4 {
@@ -289,8 +289,8 @@ update_and_render: UpdateAndRenderProc : proc(
 		move += V3{1, 0, 0}
 	}
 
-	player := get_entity(game_state, game_state.player)
-	player.anim_elapsed_time += i32(time_span * 1000)
+	player := get_low_entity(game_state, game_state.player)
+	player.anim_elapsed_time += i32(dt * 1000)
 
 	// player 运动模拟
 	player_rfd :: 10.0 //深蹲重量/体重
@@ -302,7 +302,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	}
 
 	//player.velocity = linalg.normalize(V2{move.x, move.y}) * player_speed
-	player.acc = move * player_rfd - player.velocity * 5 //摩擦力方向与速度相反
+	player.ddp = move * player_rfd - player.dp * 5 //摩擦力方向与速度相反
 
 	is_attacking_1 := input.controllers[0].action_left.ended_down
 	is_attacking_2 := input.controllers[0].action_down.ended_down
@@ -315,12 +315,12 @@ update_and_render: UpdateAndRenderProc : proc(
 	update_animate_frame_index(player, game_state.unit_animate)
 
 	// shark运动输入
-	shark := get_entity(game_state, game_state.shark)
-	update_shark_state(shark, game_state, game_memory, time_span)
+	shark := get_low_entity(game_state, game_state.shark)
+	update_shark_state(shark, game_state, game_memory, dt)
 
 
 	// camera追随player
-	game_state.camera_pos = player.pos
+	game_state.camera_p = player.pos
 
 	// debug坐标轴
 	when ODIN_DEBUG {
@@ -331,7 +331,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		for x in -10 ..< 10 {
 			for y in -10 ..< 10 {
 				chunkanchor := WorldPosition{V3i{i32(x), i32(y), 0}, 0}
-				rel_pos := relative_pos(chunkanchor, game_state.camera_pos)
+				rel_pos := relative_pos(chunkanchor, game_state.camera_p)
 				buffer_pos := rel_pos_to_buffer_pos(rel_pos, image_buffer)
 				draw_dot(buffer_pos, image_buffer)
 			}
@@ -340,8 +340,8 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	// 准备好初始条件（物体，初始速度）以后，开始区域计算模拟
 	sim_region := begin_sim(game_state, game_memory)
-	simulate(&sim_region, time_span, game_state, game_memory)
-	render_sim_region(&sim_region, image_buffer, game_state, time_span)
+	simulate(&sim_region, dt, game_state, game_memory)
+	render_sim_region(&sim_region, image_buffer, game_state, dt)
 	when ODIN_DEBUG {
 		draw_collision_debug(sim_region.debug_collision, image_buffer)
 	}
@@ -352,13 +352,13 @@ update_shark_state :: proc(
 	shark: ^LowEntity,
 	game_state: ^GameState,
 	game_memory: ^Memory,
-	time_span: f32,
+	dt: f32,
 ) {
-	harpoon := get_entity(game_state, shark.weapon)
+	harpoon := get_low_entity(game_state, shark.weapon)
 
 	shark_rfd := 5
 
-	player := get_entity(game_state, game_state.player)
+	player := get_low_entity(game_state, game_state.player)
 	distance_to_player := relative_pos(player.pos, shark.pos)
 
 	// 更新entity status
@@ -379,7 +379,7 @@ update_shark_state :: proc(
 		shark.direction = distance_to_player.x > 0 ? Direction.Forward : Direction.Backward
 	} else if shark.status == EntityStatus.Run {
 		//shark.acc = linalg.normalize(distance_to_player.xy) * shark_rfd - shark.velocity * 5
-		shark.acc = -shark.velocity * 5
+		shark.ddp = -shark.dp * 5
 	}
 
 	if shark.status != old_status {
@@ -400,15 +400,15 @@ update_shark_state :: proc(
 		g :: V3{0, 0, -10}
 		v0 := ds / t - (g * t) / 2
 
-		harpoon.acc = g
-		harpoon.velocity = v0
+		harpoon.ddp = g
+		harpoon.dp = v0
 		harpoon.target_pos = target_pos
 		harpoon.flight_time_remaining = t * 1000
-		set_spatial(harpoon, shark.weapon, start_pos, game_state, game_memory)
+		make_entity_spatial(harpoon, shark.weapon, start_pos, game_state, game_memory)
 
 		add_collision_rule(
 			game_state.shark,
-			get_entity(game_state, game_state.shark).weapon,
+			get_low_entity(game_state, game_state.shark).weapon,
 			false,
 			game_state,
 			game_memory,
@@ -416,12 +416,9 @@ update_shark_state :: proc(
 	}
 
 	// 想象frame time为1分钟，我们simulate和render是1分钟以后的世界。anim_elapsed_time应该在重置以后再加上1分钟
-	shark.anim_elapsed_time += i32(time_span * 1000)
+	shark.anim_elapsed_time += i32(dt * 1000)
 	if harpoon.flight_time_remaining > 0 {
-		harpoon.flight_time_remaining = math.max(
-			0,
-			harpoon.flight_time_remaining - i32(time_span * 1000),
-		)
+		harpoon.flight_time_remaining = math.max(0, harpoon.flight_time_remaining - i32(dt * 1000))
 	}
 	// 根据elapsed time更新frame index
 	animation := game_state.harpoon_shark_animation
@@ -448,7 +445,7 @@ update_animate_frame_index :: proc(entity: ^LowEntity, animation: Animation) {
 	}
 }
 
-collison_rule_hash :: proc(ety_a: u32, ety_b: u32) -> (u32, u32, u32) {
+collision_rule_hash :: proc(ety_a: u32, ety_b: u32) -> (u32, u32, u32) {
 	min_ety_index := math.min(ety_a, ety_b)
 	max_ety_index := math.max(ety_a, ety_b)
 	hash := min_ety_index % 256
@@ -456,8 +453,8 @@ collison_rule_hash :: proc(ety_a: u32, ety_b: u32) -> (u32, u32, u32) {
 }
 
 
-get_collision_rule :: proc(ety_a: u32, ety_b: u32, state: ^GameState) -> ^CollisionRule {
-	min_ety_index, max_ety_index, hash := collison_rule_hash(ety_a, ety_b)
+get_collision_rule :: proc(ety_a: u32, ety_b: u32, state: ^GameState) -> ^PairwiseCollisionRule {
+	min_ety_index, max_ety_index, hash := collision_rule_hash(ety_a, ety_b)
 	bucket := state.collision_rule_hash[hash]
 	for rule := bucket; rule != nil; rule = rule.next {
 		if rule.entity_a == min_ety_index && rule.entity_b == max_ety_index {
@@ -468,14 +465,14 @@ get_collision_rule :: proc(ety_a: u32, ety_b: u32, state: ^GameState) -> ^Collis
 }
 
 // find a place in memory to store rule (free list or new memory location)
-new_collison_rule :: proc(state: ^GameState, memory: ^Memory) -> ^CollisionRule {
-	result: ^CollisionRule
+new_collison_rule :: proc(state: ^GameState, memory: ^Memory) -> ^PairwiseCollisionRule {
+	result: ^PairwiseCollisionRule
 	first_free := state.first_free_collision_rule
 	if first_free != nil {
 		state.first_free_collision_rule = first_free.next
 		result = first_free
 	} else {
-		result = new(CollisionRule, memory.perm_alloc)
+		result = new(PairwiseCollisionRule, memory.perm_alloc)
 	}
 	return result
 }
@@ -488,7 +485,7 @@ add_collision_rule :: proc(
 	state: ^GameState,
 	memory: ^Memory,
 ) {
-	min_ety_index, max_ety_index, hash := collison_rule_hash(ety_a, ety_b)
+	min_ety_index, max_ety_index, hash := collision_rule_hash(ety_a, ety_b)
 	// try to get rule if already exist
 	test := get_collision_rule(ety_a, ety_b, state)
 	if (test != nil) {
@@ -500,13 +497,13 @@ add_collision_rule :: proc(
 	new_rule := new_collison_rule(state, memory)
 
 	// add rule to bucket-rule-chain's head
-	bucket: ^CollisionRule = state.collision_rule_hash[hash]
+	bucket: ^PairwiseCollisionRule = state.collision_rule_hash[hash]
 	state.collision_rule_hash[hash] = new_rule
 
-	new_rule^ = CollisionRule{min_ety_index, max_ety_index, can_collide, bucket}
+	new_rule^ = PairwiseCollisionRule{min_ety_index, max_ety_index, can_collide, bucket}
 }
 
-remove_entity_collison_rule :: proc(ety: u32, state: ^GameState) {
+clear_collision_rules_for :: proc(ety: u32, state: ^GameState) {
 	for hash in 0 ..< len(state.collision_rule_hash) {
 		// 不常见的技巧
 		// link指向hash的bucket的地址本身，而不是bucket地址内的rule地址。
@@ -520,7 +517,7 @@ remove_entity_collison_rule :: proc(ety: u32, state: ^GameState) {
 				// 把容器内存上“link里当前rule的下一个rule的地址”
 				link^ = rule^.next
 				// 清空内容
-				rule^ = CollisionRule{}
+				rule^ = PairwiseCollisionRule{}
 
 				// 回收rule到free list
 				first_free := state.first_free_collision_rule

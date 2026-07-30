@@ -61,8 +61,8 @@ LowEntity :: struct {
 	// 碰撞相关
 	moveable:              bool, //是否移动，比如墙就不能移动
 	non_spatial:           bool, //是否在simRegion里参与模拟
-	velocity:              V3,
-	acc:                   V3,
+	dp:                    V3, // derivative of p
+	ddp:                   V3, // derivative of dp
 	hit_point_total:       i32,
 	hit_point_left:        i32,
 	// 游戏逻辑相关
@@ -73,24 +73,24 @@ LowEntity :: struct {
 	attack_cooldown:       f32, // 目前用anim_elapsed_time代替
 }
 
-HighEntity :: struct {
-	low_entity:               ^LowEntity,
-	low_entity_storage_index: u32,
-	rel_pos:                  V3,
-	to_remove:                bool,
+SimEntity :: struct {
+	low_entity:    ^LowEntity,
+	storage_index: u32,
+	p:             V3,
+	to_remove:     bool,
 }
 
 
 // 获取活跃实体
 // 目前是camera范围里10米的chunk
 active_entities :: proc(state: ^GameState) -> []LowEntity {
-	camera_pos_chunk := state.camera_pos.chunkXYZ
+	camera_pos_chunk := state.camera_p.chunkXYZ
 	for x in camera_pos_chunk.x - 10 ..< camera_pos_chunk.x + 10 {
 		for y in camera_pos_chunk.y - 5 ..< camera_pos_chunk.y + 5 {
 
 		}
 	}
-	return state.entities[:state.entity_count]
+	return state.low_entities[:state.low_entity_count]
 }
 
 // 添加entity-index到chunk HashMap里
@@ -160,19 +160,19 @@ remove_entity_from_entity_list :: proc(state: ^GameState, index: u32) {
 }
 
 
-add_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) -> u32 {
+add_low_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) -> u32 {
 	// get entity index
 	entity_index: u32
 	if state.free_entity_index_count > 0 {
 		entity_index = state.free_entity_index_list[state.free_entity_index_count - 1]
 		state.free_entity_index_count -= 1
 	} else {
-		entity_index = state.entity_count
-		state.entity_count += 1
+		entity_index = state.low_entity_count
+		state.low_entity_count += 1
 	}
 
 	// entity内容储存
-	state.entities[entity_index] = entity
+	state.low_entities[entity_index] = entity
 
 	// 添加entity chunk index
 	if !entity.non_spatial {
@@ -181,6 +181,6 @@ add_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) -> u32
 	return entity_index
 }
 
-get_entity :: proc(state: ^GameState, index: u32) -> ^LowEntity {
-	return &state.entities[index]
+get_low_entity :: proc(state: ^GameState, index: u32) -> ^LowEntity {
+	return &state.low_entities[index]
 }

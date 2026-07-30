@@ -6,10 +6,10 @@ import "core:math"
 import "core:math/linalg"
 
 SimRegion :: struct {
-	high_entities:     [4096]HighEntity, // 复制数据（而不是id或者指针），方便模拟和修改
-	high_entity_count: u32,
-	space:             BufferRectangle,
-	debug_collision:   CollisionDebug,
+	entities:        [4096]SimEntity, // 复制数据（而不是id或者指针），方便模拟和修改
+	entity_count:    u32,
+	space:           BufferRectangle,
+	debug_collision: CollisionDebug,
 }
 
 // 只用于画出最近一次 sweep 命中的计算过程；所有坐标都仍在 sim 的相对世界坐标中。
@@ -41,27 +41,24 @@ eps :: math.F32_EPSILON
 begin_sim :: proc(state: ^GameState, memory: ^Memory) -> SimRegion {
 	result := SimRegion{}
 	// 根据camera的坐标找到chunk
-	for x in state.camera_pos.chunkXYZ.x - 10 ..< state.camera_pos.chunkXYZ.x + 10 {
-		for y in state.camera_pos.chunkXYZ.y - 5 ..< state.camera_pos.chunkXYZ.y + 5 {
-			for z in state.camera_pos.chunkXYZ.z ..< state.camera_pos.chunkXYZ.z + 1 {
+	for x in state.camera_p.chunkXYZ.x - 10 ..< state.camera_p.chunkXYZ.x + 10 {
+		for y in state.camera_p.chunkXYZ.y - 5 ..< state.camera_p.chunkXYZ.y + 5 {
+			for z in state.camera_p.chunkXYZ.z ..< state.camera_p.chunkXYZ.z + 1 {
 				chunk := get_world_chunk(state, V3i{x, y, z}, memory)
 				assert(chunk != nil)
 
 				// copy entity values into SimRegion
 				for block := chunk.first_block; block != nil; block = block.next {
 					for low_entity_storage_id in block.entity_indexes[:block.entity_count] {
-						low_entity := &state.entities[low_entity_storage_id]
-						high_entity := HighEntity {
-							low_entity               = low_entity,
-							low_entity_storage_index = low_entity_storage_id,
-							rel_pos                  = relative_pos(
-								low_entity.pos,
-								state.camera_pos,
-							),
+						low_entity := &state.low_entities[low_entity_storage_id]
+						high_entity := SimEntity {
+							low_entity    = low_entity,
+							storage_index = low_entity_storage_id,
+							p             = relative_pos(low_entity.pos, state.camera_p),
 						}
-						assert(result.high_entity_count < len(result.high_entities))
-						result.high_entities[result.high_entity_count] = high_entity
-						result.high_entity_count += 1
+						assert(result.entity_count < len(result.entities))
+						result.entities[result.entity_count] = high_entity
+						result.entity_count += 1
 					}
 				}
 			}
@@ -71,8 +68,8 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory) -> SimRegion {
 }
 
 
-high_entity_rect_center :: proc(h_e: ^HighEntity) -> V2 {
-	result := h_e.rel_pos
+high_entity_rect_center :: proc(h_e: ^SimEntity) -> V2 {
+	result := h_e.p
 	result.y = result.y + h_e.low_entity.size.y / 2
 	return V2{result.x, result.y}
 }
@@ -101,7 +98,7 @@ half_plane_from_ccw_points :: proc(a: V2, b: V2) -> HalfPlane {
 // s0:(o · n - c) 起始点和半平面的关系。s0 > 0, o在平面内
 // 移动的向量 在平面内 => sv * t >= -s0
 // t=0时， 0 >= -s0 => 判断起点是不是在平面内
-time_span_in_half_plane :: proc(o: V2, v: V2, hp: HalfPlane) -> Interval {
+dt_in_half_plane :: proc(o: V2, v: V2, hp: HalfPlane) -> Interval {
 	neg_inf := math.inf_f32(-1)
 	pos_inf := math.inf_f32(+1)
 
@@ -138,8 +135,8 @@ intersect_interval :: proc(a: Interval, b: Interval) -> Interval {
 	}
 }
 
-collide_convex_polygon_swept :: proc(ety_a: ^HighEntity, ety_b: ^HighEntity, time: f32) {
-	rel_velocity := ety_a.low_entity.velocity - ety_b.low_entity.velocity
+collide_convex_polygon_swept :: proc(ety_a: ^SimEntity, ety_b: ^SimEntity, time: f32) {
+	rel_velocity := ety_a.low_entity.dp - ety_b.low_entity.dp
 	// 画出minkowski对应的碰撞体积
 	// 把原点放在B的中心，原点 in (A-B)?
 	// A - B = A + B（矩形在原点上反转不变） = 以A为中心外面加1/2B的扩大矩形
@@ -153,27 +150,27 @@ collide_convex_polygon_swept :: proc(ety_a: ^HighEntity, ety_b: ^HighEntity, tim
 	max := extented_A.max
 	ccw_corners := [4]V2{min, V2{max.x, min.y}, max, V2{min.x, max.y}}
 
-	time_spans := [4]Interval{}
+	dts := [4]Interval{}
 	for i in 0 ..< len(ccw_corners) {
 		from := ccw_corners[i]
 		to := ccw_corners[(i + 1) % len(ccw_corners)]
 		hp := half_plane_from_ccw_points(from, to)
-		time_spans[i] = time_span_in_half_plane(V2{0, 0}, rel_velocity.xy, hp)
+		dts[i] = dt_in_half_plane(V2{0, 0}, rel_velocity.xy, hp)
 	}
 
 	inside_span := Interval{0, time, true}
-	for i in 0 ..< len(time_spans) {
-		inside_span = intersect_interval(inside_span, time_spans[i])
+	for i in 0 ..< len(dts) {
+		inside_span = intersect_interval(inside_span, dts[i])
 	}
 
 	if inside_span.valid {
-		ety_a_new_pos := ety_a.low_entity.velocity * inside_span.min
-		ety_a.rel_pos.x += ety_a_new_pos.x
-		ety_a.rel_pos.y += ety_a_new_pos.y
+		ety_a_new_pos := ety_a.low_entity.dp * inside_span.min
+		ety_a.p.x += ety_a_new_pos.x
+		ety_a.p.y += ety_a_new_pos.y
 
-		ety_b_new_pos := ety_b.low_entity.velocity * inside_span.min
-		ety_b.rel_pos.x += ety_b_new_pos.x
-		ety_b.rel_pos.y += ety_b_new_pos.y
+		ety_b_new_pos := ety_b.low_entity.dp * inside_span.min
+		ety_b.p.x += ety_b_new_pos.x
+		ety_b.p.y += ety_b_new_pos.y
 	}
 }
 
@@ -186,14 +183,14 @@ WallSide :: struct {
 
 HitResult :: struct {
 	hit:            bool,
-	other:          ^HighEntity,
+	other:          ^SimEntity,
 	surface:        V2,
 	sweep_fraction: f32,
 }
 
 record_collision_debug :: proc(
 	debug: ^CollisionDebug,
-	ety_a, ety_b: ^HighEntity,
+	ety_a, ety_b: ^SimEntity,
 	dp_remaining: V2,
 	hit: HitResult,
 ) {
@@ -218,8 +215,8 @@ record_collision_debug :: proc(
 // TODO 现在的回退策略不是很好。需要更好的方法解决float导致的突然卡在边缘/内部的问题。
 // 返回碰撞模拟结果，但不能直接修改entity的状态，因为要与所有可能碰撞的entity的碰撞计算选取最近的
 collide_minkowski_swept_AABB :: proc(
-	ety_a: ^HighEntity,
-	ety_b: ^HighEntity,
+	ety_a: ^SimEntity,
+	ety_b: ^SimEntity,
 	dp_remaining: V2,
 ) -> HitResult {
 	// 画出minkowski对应的碰撞体积
@@ -287,7 +284,7 @@ collide_minkowski_swept_AABB :: proc(
 
 
 simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_memory: ^Memory) {
-	entities := sim_region.high_entities[:sim_region.high_entity_count]
+	entities := sim_region.entities[:sim_region.entity_count]
 
 	// 不需要同步模拟(也就是不需要使用相对速度/加速度）
 	// a物体运动好以后，b物体在a物体移动后的状态下继续算他的运动。
@@ -314,11 +311,11 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 
 			// 如果没有碰撞，运行的距离
 			// delta = v0 * dt + 0.5 * a * dt * dt
-			dp_remaining := e_a.low_entity.velocity * dt + 0.5 * e_a.low_entity.acc * dt * dt
-			e_a.low_entity.velocity = e_a.low_entity.velocity + e_a.low_entity.acc * dt
+			dp_remaining := e_a.low_entity.dp * dt + 0.5 * e_a.low_entity.ddp * dt * dt
+			e_a.low_entity.dp = e_a.low_entity.dp + e_a.low_entity.ddp * dt
 
 			// z 方向单独处理，不参与碰撞
-			e_a.rel_pos.z += dp_remaining.z
+			e_a.p.z += dp_remaining.z
 			dp_remaining.z = 0
 
 			for n in 0 ..< 4 {
@@ -329,7 +326,7 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 				// 先找到最近的碰撞对象nearest_hit，计算碰撞结果
 				for &e_b in entities {
 					// check-point-1: 有些不碰撞，比如玩家和他的武器
-					if shouldCollide(&e_a, &e_b, game_state) {
+					if can_collide(&e_a, &e_b, game_state) {
 						hit_result := collide_minkowski_swept_AABB(&e_a, &e_b, dp_remaining.xy)
 						if hit_result.hit &&
 						   (hit_result.sweep_fraction < nearest_hit.sweep_fraction) {
@@ -359,7 +356,7 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 					)
 					if stop_on_collison {
 						dp := dp_remaining * nearest_hit.sweep_fraction
-						e_a.rel_pos += dp
+						e_a.p += dp
 
 						dp_remaining_xy :=
 							linalg.dot(
@@ -369,20 +366,20 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 							nearest_hit.surface.xy
 						dp_remaining.xy = dp_remaining_xy
 
-						e_a.low_entity.velocity.xy = linalg.dot(
-							e_a.low_entity.velocity.xy,
+						e_a.low_entity.dp.xy = linalg.dot(
+							e_a.low_entity.dp.xy,
 							nearest_hit.surface,
 						)
 					} else {
 						// 没有碰撞
 						dp := dp_remaining
-						e_a.rel_pos += dp
+						e_a.p += dp
 						break
 					}
 				} else {
 					// 没有碰撞
 					dp := dp_remaining
-					e_a.rel_pos += dp
+					e_a.p += dp
 					break
 				}
 			}
@@ -397,16 +394,12 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 // 1. 武器和owner记录下来为false，不会碰撞（这条可以转化为owner check）
 // 2. 伤害过一次就记录下来为false，下次不会重复碰撞
 //
-shouldCollide :: proc(ety_a: ^HighEntity, ety_b: ^HighEntity, state: ^GameState) -> bool {
+can_collide :: proc(ety_a: ^SimEntity, ety_b: ^SimEntity, state: ^GameState) -> bool {
 	if (ety_a == ety_b) {
 		return false
 	}
 
-	rule := get_collision_rule(
-		ety_a.low_entity_storage_index,
-		ety_b.low_entity_storage_index,
-		state,
-	)
+	rule := get_collision_rule(ety_a.storage_index, ety_b.storage_index, state)
 	if rule != nil {
 		return rule.can_collide
 	} else {
@@ -416,8 +409,8 @@ shouldCollide :: proc(ety_a: ^HighEntity, ety_b: ^HighEntity, state: ^GameState)
 
 // 目前返回stop_on_collison。但其实可以返回多个碰撞后的信息/event（是否停止？是否受伤？等等）
 handle_collision :: proc(
-	e_a: ^HighEntity,
-	e_b: ^HighEntity,
+	e_a: ^SimEntity,
+	e_b: ^SimEntity,
 	state: ^GameState,
 	memory: ^Memory,
 ) -> bool {
@@ -431,13 +424,7 @@ handle_collision :: proc(
 		player := (e_a.low_entity.type == EntityType.Player) ? e_a : e_b
 
 		player.low_entity.hit_point_left -= 1
-		add_collision_rule(
-			weapon.low_entity_storage_index,
-			player.low_entity_storage_index,
-			false,
-			state,
-			memory,
-		)
+		add_collision_rule(weapon.storage_index, player.storage_index, false, state, memory)
 		// 武器和人物碰撞后不停止
 		return false
 	}
@@ -446,7 +433,7 @@ handle_collision :: proc(
 }
 
 // 模拟的浮点坐标转换为low entity的低精度坐标
-world_pos_add_rel :: proc(rel_pos: [3]f32, camera_pos: WorldPosition) -> WorldPosition {
+map_into_chunk_space :: proc(rel_pos: [3]f32, camera_pos: WorldPosition) -> WorldPosition {
 	result := camera_pos
 	result.offset.x += rel_pos.x
 	result.offset.y += rel_pos.y
@@ -456,7 +443,7 @@ world_pos_add_rel :: proc(rel_pos: [3]f32, camera_pos: WorldPosition) -> WorldPo
 }
 
 // 重新放置low entity的chunk位置
-reIndex :: proc(
+change_entity_location :: proc(
 	low_entity: ^LowEntity,
 	low_entity_storage_index: u32,
 	new_pos: WorldPosition,
@@ -484,21 +471,21 @@ reIndex :: proc(
 
 // 把计算好的high entity对应的状态（目前是未知）更新回原来的low entity
 end_sim :: proc(state: ^GameState, sim_region: ^SimRegion, memory: ^Memory) {
-	high_entities := sim_region.high_entities[:sim_region.high_entity_count]
+	high_entities := sim_region.entities[:sim_region.entity_count]
 	for high_entity in high_entities {
 		low_entity := high_entity.low_entity
-		new_pos := world_pos_add_rel(high_entity.rel_pos, state.camera_pos)
+		new_pos := map_into_chunk_space(high_entity.p, state.camera_p)
 		old_pos := low_entity.pos
 
 		// 武器命中以后需要回收重置
 		if low_entity.type == EntityType.Weapon && low_entity.flight_time_remaining <= 0 {
 			low_entity.non_spatial = true
-			remove_entity_collison_rule(high_entity.low_entity_storage_index, state)
+			clear_collision_rules_for(high_entity.storage_index, state)
 		}
 		// 调整entity在chunk hash里的位置
-		reIndex(
+		change_entity_location(
 			low_entity,
-			high_entity.low_entity_storage_index,
+			high_entity.storage_index,
 			new_pos,
 			state,
 			memory,

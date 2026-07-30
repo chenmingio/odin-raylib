@@ -111,7 +111,7 @@ get_world_chunk :: proc(state: ^GameState, chunkXYZ: V3i, memory: ^Memory = nil)
 	return new_chunk
 }
 
-set_spatial :: proc(
+make_entity_spatial :: proc(
 	ety: ^LowEntity,
 	ety_index: u32,
 	pos: WorldPosition,

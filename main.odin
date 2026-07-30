@@ -184,14 +184,14 @@ main :: proc() {
 			is_paused = !is_paused
 		}
 
-		time_span := rl.GetFrameTime()
+		dt := rl.GetFrameTime()
 
 		// 更新音频（传入实际帧时间）
-		// platform.update_audio(is_paused, time_span)
+		// platform.update_audio(is_paused, dt)
 
 		// update and render
 		if !is_paused {
-			game_code.game_update_and_render(&game_memory, game_input, game_off_screen, time_span)
+			game_code.game_update_and_render(&game_memory, game_input, game_off_screen, dt)
 			rl.UpdateTexture(bufferTexture, off_screen_image.data)
 			rl.DrawTexture(bufferTexture, 0, 0, rl.WHITE)
 		} else {
