@@ -36,7 +36,7 @@ meter_to_pixel :: proc {
 	meter_to_pixel_v3,
 }
 
-next_status :: proc(
+next_player_status :: proc(
 	is_moving: bool,
 	is_attacking_1: bool,
 	is_attacking_2: bool,
@@ -290,6 +290,8 @@ update_and_render: UpdateAndRenderProc : proc(
 	}
 
 	player := get_entity(game_state, game_state.player)
+	player.anim_elapsed_time += i32(time_span * 1000)
+
 	// player 运动模拟
 	player_rfd :: 10.0 //深蹲重量/体重
 
@@ -304,65 +306,18 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	is_attacking_1 := input.controllers[0].action_left.ended_down
 	is_attacking_2 := input.controllers[0].action_down.ended_down
-	next_status := next_status(is_moving, is_attacking_1, is_attacking_2)
+	next_status := next_player_status(is_moving, is_attacking_1, is_attacking_2)
 	if (player.status != next_status) {
 		player.anim_frame_idx = 0
-		player.anim_time = 0
+		player.anim_elapsed_time = 0
 	}
 	player.status = next_status
+	update_animate_frame_index(player, game_state.unit_animate)
 
 	// shark运动输入
 	shark := get_entity(game_state, game_state.shark)
-	harpoon := get_entity(game_state, shark.weapon)
-	shark_rfd :: 5
-	distance_to_player := relative_pos(player.pos, shark.pos)
-	shark_next_status :=
-		math.abs(linalg.length(shark.velocity)) > 0.01 ? EntityStatus.Run : EntityStatus.Idle
-	// 开始攻击
-	if linalg.length(distance_to_player) < 5 {
-		//shark.acc = linalg.normalize(distance_to_player.xy) * shark_rfd - shark.velocity * 5
-		shark_next_status = EntityStatus.Throw
-		shark.direction = distance_to_player.x > 0 ? Direction.Forward : Direction.Backward
-	} else {
-		shark.acc = -shark.velocity * 5
-	}
-	if shark.status != shark_next_status {
-		shark.anim_frame_idx = 0
-		shark.anim_time = 0
-	}
-	shark.status = shark_next_status
+	update_shark_state(shark, game_state, game_memory, time_span)
 
-	// 攻击时，把non-spatial的武器装载状态，加入hash-chunk，设置为spatial
-	if shark.status == EntityStatus.Throw &&
-	   shark.anim_frame_idx == 4 &&
-	   harpoon.non_spatial == true {
-
-		start_pos := world_pos_add(shark.pos, V3{0, 0.4, 0.5})
-		target_pos := player.pos
-		target_pos.offset.z = player.size.y / 2 //假设size.y/2不超过chunk size
-		ds := relative_pos(target_pos, start_pos)
-		time :: 0.6 //thrown的动画耗时0.7秒。如果0.6里不能回收武器，下一次会变成空投。
-		g :: V3{0, 0, -10}
-		v0 := ds / time - (g * time) / 2
-
-		harpoon.acc = g
-		harpoon.velocity = v0
-		harpoon.target_pos = target_pos
-		set_spatial(harpoon, shark.weapon, start_pos, game_state, game_memory)
-
-		shark.shark_harpoon_thrown = true
-
-		add_collision_rule(
-			game_state.shark,
-			get_entity(game_state, game_state.shark).weapon,
-			false,
-			game_state,
-			game_memory,
-		)
-
-	} else if shark.status == EntityStatus.Throw && shark.anim_frame_idx == 0 {
-		shark.shark_harpoon_thrown = false
-	}
 
 	// camera追随player
 	game_state.camera_pos = player.pos
@@ -391,6 +346,106 @@ update_and_render: UpdateAndRenderProc : proc(
 		draw_collision_debug(sim_region.debug_collision, image_buffer)
 	}
 	end_sim(game_state, &sim_region, game_memory)
+}
+
+update_shark_state :: proc(
+	shark: ^LowEntity,
+	game_state: ^GameState,
+	game_memory: ^Memory,
+	time_span: f32,
+) {
+	harpoon := get_entity(game_state, shark.weapon)
+
+	shark_rfd := 5
+
+	player := get_entity(game_state, game_state.player)
+	distance_to_player := relative_pos(player.pos, shark.pos)
+
+	// 更新entity status
+	// 默认Idel/Run
+	//next_shark_status := math.abs(linalg.length(shark.velocity)) > 0.01 ? EntityStatus.Run : EntityStatus.Idle
+	old_status := shark.status
+
+	if shark.status == EntityStatus.Throw && shark.anim_elapsed_time > 700 {
+		shark.status = EntityStatus.Idle
+	}
+
+	// 触发进入攻击状态(但是还不能扔出鱼叉)
+	if shark.status == EntityStatus.Idle &&
+	   harpoon.non_spatial &&
+	   linalg.length(distance_to_player) < 4 {
+		shark.status = EntityStatus.Throw
+		// shark.shark_thrown_cooldown = 700
+		shark.direction = distance_to_player.x > 0 ? Direction.Forward : Direction.Backward
+	} else if shark.status == EntityStatus.Run {
+		//shark.acc = linalg.normalize(distance_to_player.xy) * shark_rfd - shark.velocity * 5
+		shark.acc = -shark.velocity * 5
+	}
+
+	if shark.status != old_status {
+		shark.anim_frame_idx = 0
+		shark.anim_elapsed_time = 0
+	}
+
+	// 到达攻击frame时，把non-spatial的武器装载状态，加入hash-chunk，设置为spatial
+	if shark.status == EntityStatus.Throw &&
+	   shark.anim_elapsed_time > 400 &&
+	   harpoon.non_spatial == true {
+
+		start_pos := world_pos_add(shark.pos, V3{0, 0.4, 0.5})
+		target_pos := player.pos
+		target_pos.offset.z = player.size.y / 2 //假设size.y/2不超过chunk size
+		ds := relative_pos(target_pos, start_pos)
+		t :: 0.4 //thrown的动画耗时0.7秒。如果0.6里不能回收武器，下一次会变成空投。
+		g :: V3{0, 0, -10}
+		v0 := ds / t - (g * t) / 2
+
+		harpoon.acc = g
+		harpoon.velocity = v0
+		harpoon.target_pos = target_pos
+		harpoon.flight_time_remaining = t * 1000
+		set_spatial(harpoon, shark.weapon, start_pos, game_state, game_memory)
+
+		add_collision_rule(
+			game_state.shark,
+			get_entity(game_state, game_state.shark).weapon,
+			false,
+			game_state,
+			game_memory,
+		)
+	}
+
+	// 想象frame time为1分钟，我们simulate和render是1分钟以后的世界。anim_elapsed_time应该在重置以后再加上1分钟
+	shark.anim_elapsed_time += i32(time_span * 1000)
+	if harpoon.flight_time_remaining > 0 {
+		harpoon.flight_time_remaining = math.max(
+			0,
+			harpoon.flight_time_remaining - i32(time_span * 1000),
+		)
+	}
+	// 根据elapsed time更新frame index
+	animation := game_state.harpoon_shark_animation
+	update_animate_frame_index(shark, animation)
+}
+
+update_animate_frame_index :: proc(entity: ^LowEntity, animation: Animation) {
+	clip := animation.clips[entity.status]
+	clip_frames := clip.frames
+	assert(len(clip_frames) > 0)
+
+	elapsed_time :=
+		(entity.status == EntityStatus.Throw) ? entity.anim_elapsed_time : entity.anim_elapsed_time % clip.total_duration
+
+	acc: i32 = 0
+	for idx in 0 ..< len(clip_frames) {
+		frame := clip_frames[idx]
+		if acc + frame.duration > elapsed_time {
+			entity.anim_frame_idx = i32(idx)
+			break
+		} else {
+			acc += frame.duration
+		}
+	}
 }
 
 collison_rule_hash :: proc(ety_a: u32, ety_b: u32) -> (u32, u32, u32) {

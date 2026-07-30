@@ -491,8 +491,7 @@ end_sim :: proc(state: ^GameState, sim_region: ^SimRegion, memory: ^Memory) {
 		old_pos := low_entity.pos
 
 		// 武器命中以后需要回收重置
-		if low_entity.type == EntityType.Weapon &&
-		   linalg.length(relative_pos(low_entity.target_pos, new_pos)) < 0.1 {
+		if low_entity.type == EntityType.Weapon && low_entity.flight_time_remaining <= 0 {
 			low_entity.non_spatial = true
 			remove_entity_collison_rule(high_entity.low_entity_storage_index, state)
 		}

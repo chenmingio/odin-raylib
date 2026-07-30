@@ -375,15 +375,7 @@ draw_entity_animation :: proc(
 	reverse := entity.direction == Direction.Backward
 
 	// in pixel
-	clip_frames := animation.clips[status].frames
-	assert(len(clip_frames) > 0)
-
-	for entity.anim_time >= clip_frames[entity.anim_frame_idx].duration {
-		entity.anim_time -= clip_frames[entity.anim_frame_idx].duration
-		entity.anim_frame_idx = (entity.anim_frame_idx + 1) % i32(len(clip_frames))
-	}
-	entity.anim_time += i32(dt * 1000)
-
+	clip_frames := animation.clips[entity.status].frames
 	anim_frame := clip_frames[entity.anim_frame_idx]
 	source_rect_size := V2i{anim_frame.frame.w, anim_frame.frame.h}
 	source_rect_pos := V2i{anim_frame.frame.x, anim_frame.frame.y}

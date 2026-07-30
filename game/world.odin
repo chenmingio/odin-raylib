@@ -122,7 +122,5 @@ set_spatial :: proc(
 	ety.pos = pos
 	assert(ety.non_spatial == true)
 	ety.non_spatial = false
-	// 这个是否需要放在begin-sim里面？
 	add_entity_index_to_hash_chunk(game_state, game_memory, ety_index, pos.chunkXYZ)
-
 }

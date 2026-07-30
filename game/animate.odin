@@ -44,7 +44,8 @@ AseSpriteSheet :: struct {
 }
 
 AnimClip :: struct {
-	frames: [dynamic]AseFrame,
+	frames:         [dynamic]AseFrame,
+	total_duration: i32,
 }
 
 Animation :: struct {
@@ -98,9 +99,11 @@ animation_from_assets :: proc(
 			key := fmt.tprintf("%s #%s %d.aseprite", prefix, tag.name, i)
 			anim_frame, ok := assets.sheet.frames[key]
 			assert(ok, "frame not found")
+			clip.total_duration += anim_frame.duration
 
 			n, err := append(&clip.frames, anim_frame)
 			assert(err == nil, "append failed")
+
 		}
 
 		assert(len(clip.frames) > 0)
