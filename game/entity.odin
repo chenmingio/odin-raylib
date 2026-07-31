@@ -78,6 +78,7 @@ SimEntity :: struct {
 	storage_index: u32,
 	p:             V3,
 	to_remove:     bool,
+	updatable:     bool,
 }
 
 

@@ -21,6 +21,8 @@ import rl "vendor:raylib"
 // 简化类型名
 Sample :: platform.Sample
 
+TARGET_UPDATE_HZ :: 30
+FIXED_DT :: 1.0 / f32(TARGET_UPDATE_HZ)
 
 main :: proc() {
 	// 没有正确打包应用，目前无法获取显示器信息
@@ -185,10 +187,8 @@ main :: proc() {
 		}
 
 		// 使用固定的tick，这样sim模拟可以依赖固定值预估计算范围，简化模型。
-		TARGET_UPDATE_HZ :: 30
-		FIXED_DT :: 1.0 / f32(TARGET_UPDATE_HZ)
 		rl.SetTargetFPS(TARGET_UPDATE_HZ)
-		dt := rl.GetFrameTime()
+		// dt := rl.GetFrameTime()
 
 		// 更新音频（传入实际帧时间）
 		// platform.update_audio(is_paused, FIXED_DT)

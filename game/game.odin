@@ -109,6 +109,11 @@ Rectangle :: struct {
 	max: V2,
 }
 
+Box :: struct {
+	min: V3,
+	max: V3,
+}
+
 Memory :: struct {
 	is_initialized:    bool,
 	permanent_storage: []byte,
@@ -344,7 +349,7 @@ update_and_render: UpdateAndRenderProc : proc(
 	}
 
 	// 准备好初始条件（物体，初始速度）以后，开始区域计算模拟
-	sim_region := begin_sim(game_state, game_memory)
+	sim_region := begin_sim(game_state, game_memory, dt)
 	simulate(&sim_region, dt, game_state, game_memory)
 	render_sim_region(&sim_region, image_buffer, game_state, dt)
 	when ODIN_DEBUG {

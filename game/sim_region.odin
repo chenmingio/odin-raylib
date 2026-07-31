@@ -6,10 +6,12 @@ import "core:math"
 import "core:math/linalg"
 
 SimRegion :: struct {
-	entities:        [4096]SimEntity, // 复制数据（而不是id或者指针），方便模拟和修改
-	entity_count:    u32,
-	space:           BufferRectangle,
-	debug_collision: CollisionDebug,
+	entities:            [4096]SimEntity, // 复制数据（而不是id或者指针），方便模拟和修改
+	entity_count:        u32,
+	space:               BufferRectangle,
+	debug_collision:     CollisionDebug,
+	max_entity_radius:   f32,
+	max_entity_velocity: f32,
 }
 
 // 只用于画出最近一次 sweep 命中的计算过程；所有坐标都仍在 sim 的相对世界坐标中。
@@ -35,27 +37,53 @@ Interval :: struct {
 	valid: bool,
 }
 
-eps :: math.F32_EPSILON
+SIM_EPS :: math.F32_EPSILON
 
 // 加载相关entity到high区
-begin_sim :: proc(state: ^GameState, memory: ^Memory) -> SimRegion {
-	result := SimRegion{}
-	// 根据camera的坐标找到chunk
-	for x in state.camera_p.chunkXYZ.x - 10 ..< state.camera_p.chunkXYZ.x + 10 {
-		for y in state.camera_p.chunkXYZ.y - 5 ..< state.camera_p.chunkXYZ.y + 5 {
-			for z in state.camera_p.chunkXYZ.z ..< state.camera_p.chunkXYZ.z + 1 {
+begin_sim :: proc(state: ^GameState, memory: ^Memory, dt: f32) -> SimRegion {
+	result := SimRegion {
+		max_entity_radius   = 5,
+		max_entity_velocity = 30,
+	}
+
+	margin_radius := result.max_entity_radius + result.max_entity_velocity * dt
+
+	Tile_Span_X :: 17 * 3 * 1.4
+	Tile_Span_Y :: 9 * 3 * 1.4
+	Tile_Span_Z :: 3 * 1.4
+
+	camera_bound_rel := V3{Tile_Span_X, Tile_Span_Y, Tile_Span_Z} / 2
+
+	camera_bounds_min := world_pos_minus(state.world, state.camera_p, camera_bound_rel)
+	camera_bounds_max := world_pos_add(state.world, state.camera_p, camera_bound_rel)
+	marginal_bounds_min := world_pos_minus(state.world, camera_bounds_min, margin_radius)
+	marginal_bounds_max := world_pos_add(state.world, camera_bounds_max, margin_radius)
+
+	for x in marginal_bounds_min.chunkXYZ.x ..= marginal_bounds_max.chunkXYZ.x {
+		for y in marginal_bounds_min.chunkXYZ.y ..= marginal_bounds_max.chunkXYZ.y {
+			for z in marginal_bounds_min.chunkXYZ.z ..= marginal_bounds_max.chunkXYZ.z {
+
 				chunk := get_world_chunk(state.world, V3i{x, y, z}, memory)
 				assert(chunk != nil)
 
-				// copy entity values into SimRegion
+				// refer low_entity into SimRegion, later change to copy value
 				for block := chunk.first_block; block != nil; block = block.next {
 					for low_entity_storage_id in block.entity_indexes[:block.entity_count] {
 						low_entity := &state.low_entities[low_entity_storage_id]
+						p := relative_pos(state.world, low_entity.pos, state.camera_p)
+
+						p_in_camera_bound :=
+							p.x <= camera_bound_rel.x &&
+							p.y <= camera_bound_rel.y &&
+							p.z <= camera_bound_rel.z
+
 						high_entity := SimEntity {
 							low_entity    = low_entity,
 							storage_index = low_entity_storage_id,
-							p             = relative_pos(state.world, low_entity.pos, state.camera_p),
+							p             = p,
+							updatable     = p_in_camera_bound,
 						}
+
 						assert(result.entity_count < len(result.entities))
 						result.entities[result.entity_count] = high_entity
 						result.entity_count += 1
@@ -104,17 +132,17 @@ dt_in_half_plane :: proc(o: V2, v: V2, hp: HalfPlane) -> Interval {
 
 	sv := linalg.dot(hp.n, v)
 	s0 := linalg.dot(hp.n, o) - hp.c
-	if sv > eps {
+	if sv > SIM_EPS {
 		// t >= -s0 / sv
 		return Interval{s0 * (-1) / sv, pos_inf, true}
-	} else if sv < eps {
+	} else if sv < SIM_EPS {
 		// t <= -s0 / sv
 		return Interval{neg_inf, s0 * (-1) / sv, true}
 	} else { 	// sv = 0
 		// 0 >= -s0?
 		// => s0 >= 0?
 		// => o · n >= c?
-		if (s0 >= eps) {
+		if (s0 >= SIM_EPS) {
 			return Interval{neg_inf, pos_inf, true}
 		} else {
 			return Interval{0, 0, false}
@@ -256,12 +284,12 @@ collide_minkowski_swept_AABB :: proc(
 		surface := side.dirction
 		// y=Cy 水平线 y固定，检查x
 		if (side.dirction == V2{1, 0}) {
-			if math.abs(ray.y) < eps {continue} 	// 射线和wall都是水平线，不相交
+			if math.abs(ray.y) < SIM_EPS {continue} 	// 射线和wall都是水平线，不相交
 			sweep_fraction = side.axis_pos / ray.y //投影到y轴，y=Cy时碰撞
 			the_other_axis_value = ray.x * sweep_fraction // x的
 		} else {
 			// x = Cx 垂线 x固定，检查y
-			if math.abs(ray.x) < eps {continue} 	// 射线和wall都是垂线，不相交
+			if math.abs(ray.x) < SIM_EPS {continue} 	// 射线和wall都是垂线，不相交
 			sweep_fraction = side.axis_pos / ray.x //投影到x轴，x=Cx时碰撞
 			the_other_axis_value = ray.y * sweep_fraction
 		}
@@ -291,7 +319,7 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 	// 不是很严谨（最后状态与ety loop次序有关），但是对于RPG这类游戏足够（kinematic mover）
 	for &e_a in entities {
 		// 只有运动的物体才会碰撞改变位置，不需要对墙体做运动判断。
-		if e_a.low_entity.moveable {
+		if e_a.low_entity.moveable && e_a.updatable {
 			// other是不动的。即使他是个怪物，被碰撞时，也需要保持不动。
 			// 如果是怪物碰hero，可能hero被卡住了。所以可以在shouldCollide里控制。
 
@@ -433,7 +461,11 @@ handle_collision :: proc(
 }
 
 // 模拟的浮点坐标转换为low entity的低精度坐标
-map_into_chunk_space :: proc(world: ^World, rel_pos: [3]f32, camera_pos: WorldPosition) -> WorldPosition {
+map_into_chunk_space :: proc(
+	world: ^World,
+	rel_pos: [3]f32,
+	camera_pos: WorldPosition,
+) -> WorldPosition {
 	result := camera_pos
 	result.offset.x += rel_pos.x
 	result.offset.y += rel_pos.y

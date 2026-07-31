@@ -53,7 +53,7 @@ canonicalize_axis :: proc(chunk: i32, offset: f32, chunk_side_in_meters: f32) ->
 	new_chunk := chunk + chunk_delta
 	new_offset := offset - f32(chunk_delta) * chunk_side_in_meters
 
-	if (new_offset + eps) > f32(chunk_side_in_meters) {
+	if (new_offset + SIM_EPS) > f32(chunk_side_in_meters) {
 		new_chunk += 1
 		new_offset = 0
 	}
@@ -87,6 +87,10 @@ world_pos_add :: proc(world: ^World, p: WorldPosition, d: V3) -> WorldPosition {
 	p := p
 	p.offset += d
 	return canonicalize(world, p)
+}
+
+world_pos_minus :: proc(world: ^World, p: WorldPosition, d: V3) -> WorldPosition {
+	return world_pos_add(world, p, -d)
 }
 
 hashChunk :: proc(xyz: V3i) -> i32 {
