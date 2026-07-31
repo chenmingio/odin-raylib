@@ -184,14 +184,18 @@ main :: proc() {
 			is_paused = !is_paused
 		}
 
+		// 使用固定的tick，这样sim模拟可以依赖固定值预估计算范围，简化模型。
+		TARGET_UPDATE_HZ :: 30
+		FIXED_DT :: 1.0 / f32(TARGET_UPDATE_HZ)
+		rl.SetTargetFPS(TARGET_UPDATE_HZ)
 		dt := rl.GetFrameTime()
 
 		// 更新音频（传入实际帧时间）
-		// platform.update_audio(is_paused, dt)
+		// platform.update_audio(is_paused, FIXED_DT)
 
 		// update and render
 		if !is_paused {
-			game_code.game_update_and_render(&game_memory, game_input, game_off_screen, dt)
+			game_code.game_update_and_render(&game_memory, game_input, game_off_screen, FIXED_DT)
 			rl.UpdateTexture(bufferTexture, off_screen_image.data)
 			rl.DrawTexture(bufferTexture, 0, 0, rl.WHITE)
 		} else {
