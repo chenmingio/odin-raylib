@@ -41,12 +41,16 @@ SIM_EPS :: math.F32_EPSILON
 
 // 加载相关entity到high区
 begin_sim :: proc(state: ^GameState, memory: ^Memory, dt: f32) -> SimRegion {
+	// TODO: 目前entity.p在camera-bound才算updatable。
+	// 但是最好是entity collison volume和camera-bound相交就算updatable（实时为每个entity计算）
+	//
 	result := SimRegion {
 		max_entity_radius   = 5,
 		max_entity_velocity = 30,
 	}
 
-	margin_radius := result.max_entity_radius + result.max_entity_velocity * dt
+	// 位于camera边缘的entity以最快速度达到的边缘
+	margin_radius := result.max_entity_radius * 2 + result.max_entity_velocity * dt
 
 	Tile_Span_X :: 17 * 3 * 1.4
 	Tile_Span_Y :: 9 * 3 * 1.4
@@ -56,12 +60,12 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory, dt: f32) -> SimRegion {
 
 	camera_bounds_min := world_pos_minus(state.world, state.camera_p, camera_bound_rel)
 	camera_bounds_max := world_pos_add(state.world, state.camera_p, camera_bound_rel)
-	marginal_bounds_min := world_pos_minus(state.world, camera_bounds_min, margin_radius)
-	marginal_bounds_max := world_pos_add(state.world, camera_bounds_max, margin_radius)
+	bounds_min := world_pos_minus(state.world, camera_bounds_min, margin_radius)
+	bounds_max := world_pos_add(state.world, camera_bounds_max, margin_radius)
 
-	for x in marginal_bounds_min.chunkXYZ.x ..= marginal_bounds_max.chunkXYZ.x {
-		for y in marginal_bounds_min.chunkXYZ.y ..= marginal_bounds_max.chunkXYZ.y {
-			for z in marginal_bounds_min.chunkXYZ.z ..= marginal_bounds_max.chunkXYZ.z {
+	for x in bounds_min.chunkXYZ.x ..= bounds_max.chunkXYZ.x {
+		for y in bounds_min.chunkXYZ.y ..= bounds_max.chunkXYZ.y {
+			for z in bounds_min.chunkXYZ.z ..= bounds_max.chunkXYZ.z {
 
 				chunk := get_world_chunk(state.world, V3i{x, y, z}, memory)
 				assert(chunk != nil)
