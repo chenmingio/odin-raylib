@@ -186,6 +186,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			moveable        = true,
 			hit_point_total = 3,
 			hit_point_left  = 1,
+			collides        = true,
 		}
 		game_state.player = add_low_entity(game_state, player, game_memory)
 
@@ -199,6 +200,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			moveable        = true,
 			hit_point_total = 3,
 			hit_point_left  = 3,
+			collides        = true,
 		}
 		game_state.shark = add_low_entity(game_state, new_shark, game_memory)
 		shark := get_low_entity(game_state, game_state.shark)
@@ -217,9 +219,10 @@ update_and_render: UpdateAndRenderProc : proc(
 		// 初始化地图
 		for i in 1 ..< 7 {
 			entity := LowEntity {
-				pos  = WorldPosition{V3i{0, 0, 0}, V3{f32(i), 0, 0}},
-				type = EntityType.Wall,
-				size = V2{wall_size, wall_size},
+				pos      = WorldPosition{V3i{0, 0, 0}, V3{f32(i), 0, 0}},
+				type     = EntityType.Wall,
+				size     = V2{wall_size, wall_size},
+				collides = true,
 			}
 			add_low_entity(game_state, entity, game_memory)
 		}

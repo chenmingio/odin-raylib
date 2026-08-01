@@ -431,6 +431,14 @@ can_collide :: proc(ety_a: ^SimEntity, ety_b: ^SimEntity, state: ^GameState) -> 
 		return false
 	}
 
+	if !(ety_a.low_entity.collides && ety_b.low_entity.collides) {
+		return false
+	}
+
+	if ety_a.low_entity.non_spatial || ety_b.low_entity.non_spatial {
+		return false
+	}
+
 	rule := get_collision_rule(ety_a.storage_index, ety_b.storage_index, state)
 	if rule != nil {
 		return rule.can_collide
