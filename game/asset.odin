@@ -26,3 +26,9 @@ load_aseprite_assets :: proc(
 
 	return assets
 }
+
+load_tilemap_asset :: proc() -> TileMapAsset {
+
+}
+
+tile_from_tilemap_asset :: proc() ->

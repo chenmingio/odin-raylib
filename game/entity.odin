@@ -9,6 +9,7 @@ EntityType :: enum {
 	Tree,
 	Wall,
 	Weapon,
+	Stair,
 }
 
 EntityStatus :: enum {
@@ -52,7 +53,7 @@ name_to_entity_status :: proc(name: string) -> (EntityStatus, bool) {
 LowEntity :: struct {
 	pos:                   WorldPosition,
 	type:                  EntityType,
-	size:                  V2,
+	size:                  V3,
 	// render相关
 	status:                EntityStatus,
 	anim_frame_idx:        i32,

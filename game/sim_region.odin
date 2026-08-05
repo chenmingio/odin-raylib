@@ -60,6 +60,7 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory, dt: f32) -> SimRegion {
 
 	camera_bounds_min := world_pos_minus(state.world, state.camera_p, camera_bound_rel)
 	camera_bounds_max := world_pos_add(state.world, state.camera_p, camera_bound_rel)
+	camera_bounds := Box{-camera_bound_rel, camera_bound_rel}
 	bounds_min := world_pos_minus(state.world, camera_bounds_min, margin_radius)
 	bounds_max := world_pos_add(state.world, camera_bounds_max, margin_radius)
 
@@ -76,10 +77,11 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory, dt: f32) -> SimRegion {
 						low_entity := &state.low_entities[low_entity_storage_id]
 						p := relative_pos(state.world, low_entity.pos, state.camera_p)
 
-						p_in_camera_bound :=
-							p.x <= camera_bound_rel.x &&
-							p.y <= camera_bound_rel.y &&
-							p.z <= camera_bound_rel.z
+						p_in_camera_bound := overlap_box(
+							camera_bounds,
+							entity_size_box(low_entity.size, p),
+						)
+
 
 						high_entity := SimEntity {
 							low_entity    = low_entity,
@@ -176,7 +178,7 @@ collide_convex_polygon_swept :: proc(ety_a: ^SimEntity, ety_b: ^SimEntity, time:
 	c_b := high_entity_rect_center(ety_b)
 	// B为原点，A是A-B
 	pos_A := c_a - c_b
-	extented_A_half := (ety_a.low_entity.size + ety_b.low_entity.size) / 2
+	extented_A_half := (ety_a.low_entity.size.xz + ety_b.low_entity.size.xz) / 2
 	extented_A := Rectangle{c_a - extented_A_half, c_a + extented_A_half}
 	min := extented_A.min
 	max := extented_A.max
@@ -233,8 +235,8 @@ record_collision_debug :: proc(
 
 	debug^ = CollisionDebug {
 		valid              = true,
-		expanded_min       = c_a - half,
-		expanded_max       = c_a + half,
+		expanded_min       = c_a - half.xy,
+		expanded_max       = c_a + half.xy,
 		relative_ray_start = c_b,
 		relative_ray_end   = c_b + relative_ray,
 		actual_path_start  = c_a,
@@ -265,7 +267,7 @@ collide_minkowski_swept_AABB :: proc(
 	ray := -dp_remaining
 
 	extented_A_half := (ety_a.low_entity.size + ety_b.low_entity.size) / 2
-	extented_A := Rectangle{pos_A - extented_A_half, pos_A + extented_A_half}
+	extented_A := Rectangle{pos_A - extented_A_half.xy, pos_A + extented_A_half.xy}
 	min := extented_A.min
 	max := extented_A.max
 
@@ -541,4 +543,25 @@ end_sim :: proc(state: ^GameState, sim_region: ^SimRegion, memory: ^Memory) {
 		low_entity.pos = new_pos
 
 	}
+}
+
+// x=min, y=max
+overlap_segment :: proc(a: V2, b: V2) -> bool {
+	return !(a.x > b.y || a.y < b.x)
+}
+
+overlap_box :: proc(a: Box, b: Box) -> bool {
+	return(
+		overlap_segment(V2{a.min.x, a.max.x}, V2{b.min.x, b.max.x}) &&
+		overlap_segment(V2{a.min.y, a.max.y}, V2{b.min.y, b.max.y}) &&
+		overlap_segment(V2{a.min.z, a.max.z}, V2{b.min.z, b.max.z}) \
+	)
+}
+
+entity_size_box :: proc(size: V3, pos: V3) -> Box {
+	return Box {
+		min = pos - V3{size.x / 2, size.y / 2, 0},
+		max = pos + V3{size.x / 2, size.y / 2, size.z},
+	}
+
 }

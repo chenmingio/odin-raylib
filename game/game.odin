@@ -180,7 +180,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		player := LowEntity {
 			pos             = world_pos(world, V3i{0, 0, 0}, V3{0, 0, 0}),
 			type            = EntityType.Player,
-			size            = V2{0.6, 0.7},
+			size            = V3{0.6, 0.6, 0.7},
 			status          = EntityStatus.Idle,
 			direction       = Direction.Forward,
 			moveable        = true,
@@ -194,7 +194,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		new_shark := LowEntity {
 			pos             = WorldPosition{V3i{0, 0, 0}, V3{-2, -2, 0}},
 			type            = EntityType.Enemy,
-			size            = V2{0.5, 0.6},
+			size            = V3{0.5, 0.5, 0.6},
 			status          = EntityStatus.Idle,
 			direction       = Direction.Forward,
 			moveable        = true,
@@ -208,7 +208,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		harpoon := LowEntity {
 			pos         = world_pos_add(game_state.world, new_shark.pos, V3{0, 0.4, 0.3}),
 			type        = EntityType.Weapon,
-			size        = V2{0.2, 0.2},
+			size        = V3{0.2, 0.2, 0.2},
 			moveable    = true,
 			non_spatial = true,
 			owner       = game_state.shark,
@@ -221,7 +221,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			entity := LowEntity {
 				pos      = WorldPosition{V3i{0, 0, 0}, V3{f32(i), 0, 0}},
 				type     = EntityType.Wall,
-				size     = V2{wall_size, wall_size},
+				size     = V3{wall_size, wall_size, wall_size},
 				collides = true,
 			}
 			add_low_entity(game_state, entity, game_memory)
