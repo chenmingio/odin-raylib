@@ -351,7 +351,7 @@ draw_entity_image :: proc(
 	buffer: OffScreenBuffer,
 	anchor_offset: V2i,
 ) {
-	size_px := meter_to_pixel(entity.size)
+	size_px := meter_to_pixel(entity.size.xy)
 	top_left_pos := dest_buffer_pos - anchor_offset
 
 	draw_image_simple(top_left_pos, image, buffer)
@@ -406,7 +406,7 @@ draw_entity_animation :: proc(
 	)
 
 	when ODIN_DEBUG {
-		draw_entity_body_rectangle(dest_buffer_pos, meter_to_pixel(entity.size), buffer)
+		draw_entity_body_rectangle(dest_buffer_pos, meter_to_pixel(entity.size.xy), buffer)
 	}
 }
 
@@ -437,7 +437,7 @@ draw_sprite :: proc(
 	)
 
 	when ODIN_DEBUG {
-		draw_entity_body_rectangle(dest_buffer_pos, meter_to_pixel(entity.size), buffer)
+		draw_entity_body_rectangle(dest_buffer_pos, meter_to_pixel(entity.size.xy), buffer)
 	}
 }
 
@@ -521,7 +521,7 @@ render_sim_region :: proc(
 				image_buffer,
 				V2i{32, 48},
 			)
-		case .Tree:
+		case .Tree, .Stair:
 		case .Enemy:
 			draw_entity_animation(
 				entity_anchor_buffer_pos,
