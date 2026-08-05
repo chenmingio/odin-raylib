@@ -1,0 +1,644 @@
+{
+  "frames": {
+    "Warrior #Idle 0.aseprite": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 79,
+        "h": 89
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 62,
+        "y": 48,
+        "w": 79,
+        "h": 89
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Idle 1.aseprite": {
+      "frame": {
+        "x": 79,
+        "y": 0,
+        "w": 79,
+        "h": 89
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 62,
+        "y": 48,
+        "w": 79,
+        "h": 89
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Idle 2.aseprite": {
+      "frame": {
+        "x": 158,
+        "y": 0,
+        "w": 79,
+        "h": 88
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 62,
+        "y": 49,
+        "w": 79,
+        "h": 88
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Idle 3.aseprite": {
+      "frame": {
+        "x": 237,
+        "y": 0,
+        "w": 81,
+        "h": 86
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 60,
+        "y": 51,
+        "w": 81,
+        "h": 86
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Idle 4.aseprite": {
+      "frame": {
+        "x": 318,
+        "y": 0,
+        "w": 83,
+        "h": 85
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 59,
+        "y": 52,
+        "w": 83,
+        "h": 85
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Idle 5.aseprite": {
+      "frame": {
+        "x": 401,
+        "y": 0,
+        "w": 83,
+        "h": 85
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 60,
+        "y": 52,
+        "w": 83,
+        "h": 85
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Idle 6.aseprite": {
+      "frame": {
+        "x": 484,
+        "y": 0,
+        "w": 82,
+        "h": 87
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 60,
+        "y": 50,
+        "w": 82,
+        "h": 87
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Idle 7.aseprite": {
+      "frame": {
+        "x": 566,
+        "y": 0,
+        "w": 80,
+        "h": 88
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 61,
+        "y": 49,
+        "w": 80,
+        "h": 88
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Run 0.aseprite": {
+      "frame": {
+        "x": 0,
+        "y": 89,
+        "w": 76,
+        "h": 84
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 62,
+        "y": 53,
+        "w": 76,
+        "h": 84
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Run 1.aseprite": {
+      "frame": {
+        "x": 76,
+        "y": 89,
+        "w": 67,
+        "h": 91
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 65,
+        "y": 46,
+        "w": 67,
+        "h": 91
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Run 2.aseprite": {
+      "frame": {
+        "x": 143,
+        "y": 89,
+        "w": 67,
+        "h": 91
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 65,
+        "y": 46,
+        "w": 67,
+        "h": 91
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Run 3.aseprite": {
+      "frame": {
+        "x": 210,
+        "y": 89,
+        "w": 76,
+        "h": 85
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 62,
+        "y": 52,
+        "w": 76,
+        "h": 85
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Run 4.aseprite": {
+      "frame": {
+        "x": 286,
+        "y": 89,
+        "w": 93,
+        "h": 91
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 53,
+        "y": 46,
+        "w": 93,
+        "h": 91
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Run 5.aseprite": {
+      "frame": {
+        "x": 379,
+        "y": 89,
+        "w": 88,
+        "h": 89
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 54,
+        "y": 48,
+        "w": 88,
+        "h": 89
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Attack 1 0.aseprite": {
+      "frame": {
+        "x": 0,
+        "y": 180,
+        "w": 65,
+        "h": 90
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 57,
+        "y": 47,
+        "w": 65,
+        "h": 90
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Attack 1 1.aseprite": {
+      "frame": {
+        "x": 65,
+        "y": 180,
+        "w": 67,
+        "h": 93
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 54,
+        "y": 44,
+        "w": 67,
+        "h": 93
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Attack 1 2.aseprite": {
+      "frame": {
+        "x": 132,
+        "y": 180,
+        "w": 120,
+        "h": 104
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 43,
+        "y": 50,
+        "w": 120,
+        "h": 104
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Attack 1 3.aseprite": {
+      "frame": {
+        "x": 252,
+        "y": 180,
+        "w": 114,
+        "h": 101
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 43,
+        "y": 55,
+        "w": 114,
+        "h": 101
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Attack 2 0.aseprite": {
+      "frame": {
+        "x": 0,
+        "y": 284,
+        "w": 81,
+        "h": 86
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 41,
+        "y": 51,
+        "w": 81,
+        "h": 86
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Attack 2 1.aseprite": {
+      "frame": {
+        "x": 81,
+        "y": 284,
+        "w": 80,
+        "h": 89
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 41,
+        "y": 48,
+        "w": 80,
+        "h": 89
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Attack 2 2.aseprite": {
+      "frame": {
+        "x": 161,
+        "y": 284,
+        "w": 110,
+        "h": 101
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 48,
+        "y": 51,
+        "w": 110,
+        "h": 101
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Attack 2 3.aseprite": {
+      "frame": {
+        "x": 271,
+        "y": 284,
+        "w": 102,
+        "h": 101
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 57,
+        "y": 50,
+        "w": 102,
+        "h": 101
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Guard 0.aseprite": {
+      "frame": {
+        "x": 0,
+        "y": 385,
+        "w": 68,
+        "h": 93
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 57,
+        "y": 44,
+        "w": 68,
+        "h": 93
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Guard 1.aseprite": {
+      "frame": {
+        "x": 68,
+        "y": 385,
+        "w": 69,
+        "h": 91
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 57,
+        "y": 46,
+        "w": 69,
+        "h": 91
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Guard 2.aseprite": {
+      "frame": {
+        "x": 137,
+        "y": 385,
+        "w": 70,
+        "h": 90
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 57,
+        "y": 47,
+        "w": 70,
+        "h": 90
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Guard 3.aseprite": {
+      "frame": {
+        "x": 207,
+        "y": 385,
+        "w": 67,
+        "h": 91
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 58,
+        "y": 46,
+        "w": 67,
+        "h": 91
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Guard 4.aseprite": {
+      "frame": {
+        "x": 274,
+        "y": 385,
+        "w": 67,
+        "h": 92
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 57,
+        "y": 45,
+        "w": 67,
+        "h": 92
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    },
+    "Warrior #Guard 5.aseprite": {
+      "frame": {
+        "x": 341,
+        "y": 385,
+        "w": 67,
+        "h": 93
+      },
+      "rotated": false,
+      "trimmed": true,
+      "spriteSourceSize": {
+        "x": 57,
+        "y": 44,
+        "w": 67,
+        "h": 93
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      },
+      "duration": 100
+    }
+  },
+  "meta": {
+    "app": "https://www.aseprite.org/",
+    "version": "1.3-beta7",
+    "image": "Warrior.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 646,
+      "h": 478
+    },
+    "scale": "1",
+    "frameTags": [
+      {
+        "name": "Idle",
+        "from": 0,
+        "to": 7,
+        "direction": "forward",
+        "color": "#57b9f2ff"
+      },
+      {
+        "name": "Run",
+        "from": 8,
+        "to": 13,
+        "direction": "forward",
+        "color": "#57b9f2ff"
+      },
+      {
+        "name": "Attack 1",
+        "from": 14,
+        "to": 17,
+        "direction": "forward",
+        "color": "#57b9f2ff"
+      },
+      {
+        "name": "Attack 2",
+        "from": 18,
+        "to": 21,
+        "direction": "forward",
+        "color": "#57b9f2ff"
+      },
+      {
+        "name": "Guard",
+        "from": 22,
+        "to": 27,
+        "direction": "forward",
+        "color": "#57b9f2ff"
+      }
+    ],
+    "anchorOffset": {
+      "x": 80,
+      "y": 120
+    }
+  }
+}

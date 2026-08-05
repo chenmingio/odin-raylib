@@ -1,0 +1,215 @@
+{ "frames": {
+   "Harpoon Shark #Idle 0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 60, "h": 74 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 61, "y": 62, "w": 60, "h": 74 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Idle 1.aseprite": {
+    "frame": { "x": 60, "y": 0, "w": 60, "h": 73 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 61, "y": 63, "w": 60, "h": 73 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Idle 2.aseprite": {
+    "frame": { "x": 120, "y": 0, "w": 60, "h": 73 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 61, "y": 63, "w": 60, "h": 73 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Idle 3.aseprite": {
+    "frame": { "x": 180, "y": 0, "w": 61, "h": 71 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 61, "y": 65, "w": 61, "h": 71 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Idle 4.aseprite": {
+    "frame": { "x": 241, "y": 0, "w": 61, "h": 72 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 60, "y": 64, "w": 61, "h": 72 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Idle 5.aseprite": {
+    "frame": { "x": 302, "y": 0, "w": 61, "h": 72 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 60, "y": 64, "w": 61, "h": 72 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Idle 6.aseprite": {
+    "frame": { "x": 363, "y": 0, "w": 60, "h": 73 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 61, "y": 63, "w": 60, "h": 73 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Idle 7.aseprite": {
+    "frame": { "x": 423, "y": 0, "w": 60, "h": 74 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 61, "y": 62, "w": 60, "h": 74 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Run 0.aseprite": {
+    "frame": { "x": 0, "y": 74, "w": 62, "h": 72 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 61, "y": 65, "w": 62, "h": 72 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Run 1.aseprite": {
+    "frame": { "x": 62, "y": 74, "w": 66, "h": 73 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 61, "y": 64, "w": 66, "h": 73 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Run 2.aseprite": {
+    "frame": { "x": 128, "y": 74, "w": 64, "h": 74 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 61, "y": 63, "w": 64, "h": 74 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Run 3.aseprite": {
+    "frame": { "x": 192, "y": 74, "w": 62, "h": 72 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 61, "y": 65, "w": 62, "h": 72 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Run 4.aseprite": {
+    "frame": { "x": 254, "y": 74, "w": 59, "h": 73 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 61, "y": 64, "w": 59, "h": 73 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Run 5.aseprite": {
+    "frame": { "x": 313, "y": 74, "w": 60, "h": 74 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 61, "y": 63, "w": 60, "h": 74 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Throw 0.aseprite": {
+    "frame": { "x": 0, "y": 148, "w": 80, "h": 79 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 38, "y": 57, "w": 80, "h": 79 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Throw 1.aseprite": {
+    "frame": { "x": 80, "y": 148, "w": 81, "h": 88 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 38, "y": 48, "w": 81, "h": 88 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Throw 2.aseprite": {
+    "frame": { "x": 161, "y": 148, "w": 90, "h": 68 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 34, "y": 68, "w": 90, "h": 68 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Throw 3.aseprite": {
+    "frame": { "x": 251, "y": 148, "w": 93, "h": 67 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 32, "y": 69, "w": 93, "h": 67 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Throw 4.aseprite": {
+    "frame": { "x": 344, "y": 148, "w": 75, "h": 69 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 55, "y": 67, "w": 75, "h": 69 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Throw 5.aseprite": {
+    "frame": { "x": 419, "y": 148, "w": 68, "h": 70 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 61, "y": 66, "w": 68, "h": 70 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Throw 6.aseprite": {
+    "frame": { "x": 487, "y": 148, "w": 63, "h": 71 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 61, "y": 65, "w": 63, "h": 71 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Throw 7.aseprite": {
+    "frame": { "x": 550, "y": 148, "w": 60, "h": 74 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 62, "y": 62, "w": 60, "h": 74 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   },
+   "Harpoon Shark #Harpoon.aseprite": {
+    "frame": { "x": 0, "y": 236, "w": 58, "h": 62 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 67, "y": 65, "w": 58, "h": 62 },
+    "sourceSize": { "w": 192, "h": 192 },
+    "duration": 100
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.17.2-arm64",
+  "image": "Harpoon Shark.png",
+  "format": "RGBA8888",
+  "size": { "w": 610, "h": 298 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "Idle", "from": 0, "to": 7, "direction": "forward", "color": "#57b9f2ff" },
+   { "name": "Run", "from": 8, "to": 13, "direction": "forward", "color": "#57b9f2ff" },
+   { "name": "Throw", "from": 14, "to": 21, "direction": "forward", "color": "#57b9f2ff" },
+   { "name": "Harpoon", "from": 22, "to": 22, "direction": "forward", "color": "#57b9f2ff" }
+  ],
+  "layers": [
+   { "name": "Shadow", "opacity": 255, "blendMode": "normal" },
+   { "name": "Tail", "opacity": 255, "blendMode": "normal" },
+   { "name": "Harpoons" },
+   { "name": "3", "group": "Harpoons", "opacity": 255, "blendMode": "normal" },
+   { "name": "2", "group": "Harpoons", "opacity": 255, "blendMode": "normal" },
+   { "name": "1", "group": "Harpoons", "opacity": 255, "blendMode": "normal" },
+   { "name": "Back", "group": "Harpoons", "opacity": 255, "blendMode": "normal" },
+   { "name": "Body", "opacity": 255, "blendMode": "normal" },
+   { "name": "Harpoon", "opacity": 255, "blendMode": "normal" },
+   { "name": "Arms", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}
