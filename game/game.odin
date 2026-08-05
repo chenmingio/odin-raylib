@@ -77,8 +77,8 @@ GameState :: struct {
 	harpoon_shark_assets:      AseSpriteAsset, // asset package parsed
 	harpoon_shark_animation:   Animation, // animation and config
 	harpoon_sprite:            Sprite, // image and config
-	tilemap1:                  ^image.Image,
-	game_map:                  [tileMapY][tileMapX]V2i,
+	tilemap1:                  TileMapAsset,
+	game_map:                  [tileMapY][tileMapX]string,
 	rock_images:               [4]^image.Image,
 	world:                     ^World,
 	collision_rule_hash:       [256]^PairwiseCollisionRule,
@@ -155,23 +155,23 @@ update_and_render: UpdateAndRenderProc : proc(
 		for y in 0 ..< tileMapY {
 			for x in 0 ..< tileMapX {
 				if (x == 0 && y == 0) {
-					game_state.game_map[y][x] = V2i{0, 0}
+					game_state.game_map[y][x] = "flat-ground-corner-top-left"
 				} else if (x == tileMapX - 1 && y == 0) {
-					game_state.game_map[y][x] = V2i{2, 0}
+					game_state.game_map[y][x] = "flat-ground-corner-top-right"
 				} else if (x == 0 && y == tileMapY - 1) {
-					game_state.game_map[y][x] = V2i{0, 2}
+					game_state.game_map[y][x] = "flat-ground-corner-bottom-left"
 				} else if (x == tileMapX - 1 && y == tileMapY - 1) {
-					game_state.game_map[y][x] = V2i{2, 2}
+					game_state.game_map[y][x] = "flat-ground-corner-bottom-right"
 				} else if (x == 0) {
-					game_state.game_map[y][x] = V2i{0, 1}
+					game_state.game_map[y][x] = "flat-ground-edge-left"
 				} else if (x == tileMapX - 1) {
-					game_state.game_map[y][x] = V2i{2, 1}
+					game_state.game_map[y][x] = "flat-ground-edge-right"
 				} else if (y == 0) {
-					game_state.game_map[y][x] = V2i{1, 0}
+					game_state.game_map[y][x] = "flat-ground-edge-top"
 				} else if (y == tileMapY - 1) {
-					game_state.game_map[y][x] = V2i{1, 2}
+					game_state.game_map[y][x] = "flat-ground-edge-bottom"
 				} else {
-					game_state.game_map[y][x] = V2i{1, 1}
+					game_state.game_map[y][x] = "flat-ground-center"
 				}
 			}
 		}
@@ -239,13 +239,11 @@ update_and_render: UpdateAndRenderProc : proc(
 
 		// 加载asset
 		// 载入地面
-		tilemap1, err_load_tilemap1 := image.load_from_file(
+		game_state.tilemap1 = load_tilemap_asset(
+			game_memory,
 			"resources/Terrain/Tilemap_color1.png",
-			{},
-			game_memory.temp_alloc, // 使用主程序传入的临时分配器
+			"resources/Terrain/Tilemap_color1.json",
 		)
-		assert(err_load_tilemap1 == nil)
-		game_state.tilemap1 = tilemap1
 
 		// 载入单位动画
 		game_state.unit_animate_assets = load_aseprite_assets(
@@ -286,6 +284,12 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	// 画一个绿布
 	draw_rectangle(V2i{0, 0}, V2i{image_buffer.width, image_buffer.height}, GREEN, image_buffer)
+	for y in 0 ..< tileMapY {
+		for x in 0 ..< tileMapX {
+			tile := tile_from_tilemap_asset(game_state.tilemap1, game_state.game_map[y][x])
+			draw_tile_map(V2i{i32(x), i32(y)}, tile, image_buffer)
+		}
+	}
 
 	// 控制输入
 	move := V3{0, 0, 0}

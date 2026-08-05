@@ -147,25 +147,15 @@ draw_image_simple :: proc(
 	draw_image_corp(pos, img, buffer, source_rect_size = full_size, reverse = reverse)
 }
 
-draw_tile_map :: proc(grid_pos: V2i, tile_idx: V2i, img: ^image.Image, buffer: OffScreenBuffer) {
-	tiles_per_col :: 6
-	tile_size := i32(img^.height / tiles_per_col)
-
-	// atlas 中 tile 的位置
-	source_rect_pos := V2i{tile_idx.x * tile_size, tile_idx.y * tile_size}
-
-	// 屏幕上的位置
-	screen_pos := V2i {
-		grid_pos.x * tile_size + tile_size / 2,
-		grid_pos.y * tile_size + tile_size / 2,
-	}
-
+draw_tile_map :: proc(grid_pos: V2i, tile: Tile, buffer: OffScreenBuffer) {
+	tile_size :: 64
+	screen_pos := grid_pos * tile_size
 	draw_image_corp(
 		screen_pos,
-		img,
+		tile.image,
 		buffer,
-		source_rect_size = V2i{tile_size, tile_size},
-		source_rect_pos = source_rect_pos,
+		source_rect_size = tile.frame_size,
+		source_rect_pos = tile.frame_pos,
 	)
 }
 
