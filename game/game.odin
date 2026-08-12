@@ -78,7 +78,7 @@ GameState :: struct {
 	harpoon_shark_animation:   Animation, // animation and config
 	harpoon_sprite:            Sprite, // image and config
 	tilemap1:                  TileMapAsset,
-	game_map:                  [tileMapY][tileMapX]string,
+	game_map:                  [tileMapY][tileMapX]TileCell,
 	rock_images:               [4]^image.Image,
 	world:                     ^World,
 	collision_rule_hash:       [256]^PairwiseCollisionRule,
@@ -154,25 +154,25 @@ update_and_render: UpdateAndRenderProc : proc(
 		// 地图
 		for y in 0 ..< tileMapY {
 			for x in 0 ..< tileMapX {
+				visual := TileVisual.Flat_Ground_Center
 				if (x == 0 && y == 0) {
-					game_state.game_map[y][x] = "flat-ground-corner-top-left"
+					visual = .Flat_Ground_Corner_Top_Left
 				} else if (x == tileMapX - 1 && y == 0) {
-					game_state.game_map[y][x] = "flat-ground-corner-top-right"
+					visual = .Flat_Ground_Corner_Top_Right
 				} else if (x == 0 && y == tileMapY - 1) {
-					game_state.game_map[y][x] = "flat-ground-corner-bottom-left"
+					visual = .Flat_Ground_Corner_Bottom_Left
 				} else if (x == tileMapX - 1 && y == tileMapY - 1) {
-					game_state.game_map[y][x] = "flat-ground-corner-bottom-right"
+					visual = .Flat_Ground_Corner_Bottom_Right
 				} else if (x == 0) {
-					game_state.game_map[y][x] = "flat-ground-edge-left"
+					visual = .Flat_Ground_Edge_Left
 				} else if (x == tileMapX - 1) {
-					game_state.game_map[y][x] = "flat-ground-edge-right"
+					visual = .Flat_Ground_Edge_Right
 				} else if (y == 0) {
-					game_state.game_map[y][x] = "flat-ground-edge-top"
+					visual = .Flat_Ground_Edge_Top
 				} else if (y == tileMapY - 1) {
-					game_state.game_map[y][x] = "flat-ground-edge-bottom"
-				} else {
-					game_state.game_map[y][x] = "flat-ground-center"
+					visual = .Flat_Ground_Edge_Bottom
 				}
+				game_state.game_map[y][x] = TileCell{visual = visual, level = 0}
 			}
 		}
 		// 初始化玩家
@@ -286,7 +286,8 @@ update_and_render: UpdateAndRenderProc : proc(
 	draw_rectangle(V2i{0, 0}, V2i{image_buffer.width, image_buffer.height}, GREEN, image_buffer)
 	for y in 0 ..< tileMapY {
 		for x in 0 ..< tileMapX {
-			tile := tile_from_tilemap_asset(game_state.tilemap1, game_state.game_map[y][x])
+			cell := game_state.game_map[y][x]
+			tile := tile_from_tilemap_asset(game_state.tilemap1, cell.visual)
 			draw_tile_map(V2i{i32(x), i32(y)}, tile, image_buffer)
 		}
 	}

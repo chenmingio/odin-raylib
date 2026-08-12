@@ -33,13 +33,13 @@ TileMapSliceKey :: struct {
 }
 
 TileMapSlice :: struct {
-	name: string,
+	name: TileVisual,
 	keys: []TileMapSliceKey,
 }
 
 TileMapSheet :: struct {
 	meta: struct {
-		size: struct {
+		size:   struct {
 			w, h: i32,
 		},
 		slices: []TileMapSlice,
@@ -54,7 +54,7 @@ Tile :: struct {
 
 TileMapAsset :: struct {
 	image: ^image.Image,
-	tiles: map[string]Tile,
+	tiles: [TileVisual]Tile,
 }
 
 load_tilemap_asset :: proc(
@@ -74,35 +74,45 @@ load_tilemap_asset :: proc(
 
 	asset := TileMapAsset {
 		image = img,
-		tiles = make(map[string]Tile, len(sheet.meta.slices), game_memory.perm_alloc),
 	}
+	loaded: [TileVisual]bool
 
 	assert(sheet.meta.size.w == i32(img.width) && sheet.meta.size.h == i32(img.height))
 	for slice in sheet.meta.slices {
-		assert(len(slice.keys) > 0, fmt.tprintf("tile has no bounds: %s", slice.name))
+		visual := slice.name
+		assert(visual != .Invalid, "invalid TileVisual name in tilemap metadata")
+		assert(!loaded[visual], fmt.tprintf("duplicate TileVisual: %v", visual))
+		assert(len(slice.keys) > 0, fmt.tprintf("tile has no bounds: %v", visual))
 		bounds := slice.keys[0].bounds
 		assert(
-			bounds.x >= 0 && bounds.y >= 0 &&
-			bounds.w > 0 && bounds.h > 0 &&
+			bounds.x >= 0 &&
+			bounds.y >= 0 &&
+			bounds.w > 0 &&
+			bounds.h > 0 &&
 			bounds.x + bounds.w <= i32(img.width) &&
 			bounds.y + bounds.h <= i32(img.height),
-			fmt.tprintf("tile is outside the atlas: %s", slice.name),
+			fmt.tprintf("tile is outside the atlas: %v", visual),
 		)
 
-		_, exists := asset.tiles[slice.name]
-		assert(!exists, fmt.tprintf("duplicate tile name: %s", slice.name))
-		asset.tiles[slice.name] = Tile {
+		asset.tiles[visual] = Tile {
 			image      = img,
 			frame_size = V2i{bounds.w, bounds.h},
 			frame_pos  = V2i{bounds.x, bounds.y},
 		}
+		loaded[visual] = true
+	}
+
+	for visual in TileVisual {
+		if visual == .Invalid {continue}
+		assert(loaded[visual], fmt.tprintf("TileVisual missing from tilemap metadata: %v", visual))
 	}
 
 	return asset
 }
 
-tile_from_tilemap_asset :: proc(asset: TileMapAsset, name: string) -> Tile {
-	tile, ok := asset.tiles[name]
-	assert(ok, fmt.tprintf("tile not found: %s", name))
+tile_from_tilemap_asset :: proc(asset: TileMapAsset, visual: TileVisual) -> Tile {
+	assert(visual != .Invalid)
+	tile := asset.tiles[visual]
+	assert(tile.image != nil, fmt.tprintf("TileVisual not loaded: %v", visual))
 	return tile
 }
