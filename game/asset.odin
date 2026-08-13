@@ -69,7 +69,7 @@ load_tilemap_asset :: proc(
 	assert(json_err == nil, fmt.tprintf("failed to load tilemap metadata: %s", json_path))
 
 	sheet := TileMapSheet{}
-	parse_err := json.unmarshal(json_data, &sheet, allocator = game_memory.perm_alloc)
+	parse_err := json.unmarshal(json_data, &sheet, allocator = game_memory.temp_alloc)
 	assert(parse_err == nil, fmt.tprintf("failed to parse tilemap metadata: %s", json_path))
 
 	asset := TileMapAsset {
