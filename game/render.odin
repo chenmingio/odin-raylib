@@ -147,18 +147,6 @@ draw_image_simple :: proc(
 	draw_image_corp(pos, img, buffer, source_rect_size = full_size, reverse = reverse)
 }
 
-draw_tile_map :: proc(grid_pos: V2i, tile: Tile, buffer: OffScreenBuffer) {
-	tile_size :: 64
-	screen_pos := grid_pos * tile_size
-	draw_image_corp(
-		screen_pos,
-		tile.image,
-		buffer,
-		source_rect_size = tile.frame_size,
-		source_rect_pos = tile.frame_pos,
-	)
-}
-
 // 绕 source_anchor_pos 旋转图片，并把该点放在 buffer_anchor_pos。
 // base_angle 和 target_angle 都是方向向量；图片默认朝向和目标朝向的差值就是旋转角。
 draw_image_rotated :: proc(
@@ -289,6 +277,51 @@ draw_image_corp :: proc(
 		target := buffer.data[dst_start:dst_start + width]
 
 		blend(target, source, reverse)
+	}
+}
+
+// 从图集中裁剪并使用最近邻缩放绘制，适合保持 pixel art 的硬边缘。
+draw_image_corp_scaled :: proc(
+	left_top_buffer_pos: V2i,
+	dest_size: V2i,
+	img: ^image.Image,
+	buffer: OffScreenBuffer,
+	source_rect_size: V2i,
+	source_rect_pos: V2i,
+) {
+	if dest_size.x <= 0 || dest_size.y <= 0 {
+		return
+	}
+
+	sprite_rect := BufferRectangle {
+		min = left_top_buffer_pos,
+		max = left_top_buffer_pos + dest_size,
+	}
+	buffer_rect := BufferRectangle {
+		min = V2i{0, 0},
+		max = V2i{buffer.width, buffer.height},
+	}
+	draw_rect, ok := intersect_rect(sprite_rect, buffer_rect)
+	if !ok {
+		return
+	}
+
+	pixels := transmute([dynamic]u32)img^.pixels.buf
+	image_width := i32(img^.width)
+	for buffer_y in draw_rect.min.y ..< draw_rect.max.y {
+		dest_y := buffer_y - left_top_buffer_pos.y
+		source_y := source_rect_pos.y + dest_y * source_rect_size.y / dest_size.y
+		for buffer_x in draw_rect.min.x ..< draw_rect.max.x {
+			dest_x := buffer_x - left_top_buffer_pos.x
+			source_x := source_rect_pos.x + dest_x * source_rect_size.x / dest_size.x
+
+			source_index := source_y * image_width + source_x
+			target_index := buffer_y * buffer.width + buffer_x
+			blend(
+				buffer.data[target_index:target_index + 1],
+				pixels[source_index:source_index + 1],
+			)
+		}
 	}
 }
 
@@ -511,7 +544,7 @@ render_sim_region :: proc(
 				image_buffer,
 				V2i{32, 48},
 			)
-		case .Tree, .Stair:
+		case .Tree, .Tile:
 		case .Enemy:
 			draw_entity_animation(
 				entity_anchor_buffer_pos,
@@ -530,6 +563,53 @@ render_sim_region :: proc(
 			)
 		case .Null:
 			break
+		}
+	}
+}
+
+draw_tile :: proc(
+	visual: TileVisual,
+	pos: V2,
+	tilemap: TileMapAsset,
+	buffer: OffScreenBuffer,
+) {
+	tile := tile_from_tilemap_asset(tilemap, visual)
+	dest_width := max(i32(meter_to_pixel(TILE_SIDE_IN_METERS)), 1)
+	dest_height := max(
+		(tile.frame_size.y * dest_width + tile.frame_size.x / 2) / tile.frame_size.x,
+		1,
+	)
+
+	// pos 是 tile 在世界中的左下角；图片绘制接口需要 buffer 中的左上角。
+	left_bottom_buffer_pos := rel_pos_to_buffer_pos(V3{pos.x, pos.y, 0}, buffer)
+	left_top_buffer_pos := left_bottom_buffer_pos - V2i{0, dest_height}
+	draw_image_corp_scaled(
+		left_top_buffer_pos,
+		V2i{dest_width, dest_height},
+		tile.image,
+		buffer,
+		tile.frame_size,
+		tile.frame_pos,
+	)
+}
+
+draw_chunk_tile_map :: proc(chunk: ^WorldChunk, state: ^GameState, buffer: OffScreenBuffer) {
+	chunk_rel_pos := relative_pos(state.world, WorldPosition{chunk.chunkXYZ, 0}, state.camera_p)
+	for row, y in chunk.tile_map {
+		for visual, x in row {
+			if visual == .Empty {
+				continue
+			}
+			tile_pos_xy := chunk_rel_pos.xy + V2{f32(x), f32(y)} * TILE_SIDE_IN_METERS
+			draw_tile(visual, tile_pos_xy, state.tilemap1, buffer)
+		}
+	}
+}
+
+draw_world_tile_maps :: proc(state: ^GameState, buffer: OffScreenBuffer) {
+	for first_chunk in state.world.chunk_hash {
+		for chunk := first_chunk; chunk != nil; chunk = chunk.next_in_hash {
+			draw_chunk_tile_map(chunk, state, buffer)
 		}
 	}
 }

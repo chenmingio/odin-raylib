@@ -1,6 +1,25 @@
 package game
 
 import "core:math"
+
+CHUNK_TILE_DIM :: V2i{10, 10} // chunk的xy由几个tile组成
+CHUNK_HEIGHT_METERS :: f32(10) // chunk的z的高度（目前不参与tile）
+
+TILE_SIDE_IN_METERS :: f32(1)
+
+CHUNK_DIM_IN_METERS :: V3 {
+	f32(CHUNK_TILE_DIM.x) * TILE_SIDE_IN_METERS,
+	f32(CHUNK_TILE_DIM.y) * TILE_SIDE_IN_METERS,
+	CHUNK_HEIGHT_METERS,
+}
+
+tile_axis_to_chunk :: proc(tile: i32, chunk_tile_count: i32) -> (chunk, local: i32) {
+	local = tile %% chunk_tile_count
+	chunk = (tile - local) / chunk_tile_count
+	return
+}
+
+
 WorldPosition :: struct {
 	chunkXYZ: V3i,
 	offset:   V3,
@@ -16,6 +35,7 @@ WorldChunk :: struct {
 	first_block:  ^WorldEntityBlock, // block是固定容量的储存容器，链表结构，动态创建，用freeList回收不用的
 	chunkXYZ:     V3i,
 	next_in_hash: ^WorldChunk, // chunk hash里同一个bucket里的下一个chunk
+	tile_map:     [CHUNK_TILE_DIM.y][CHUNK_TILE_DIM.x]TileVisual,
 }
 
 World :: struct {
@@ -128,7 +148,7 @@ get_world_chunk :: proc(world: ^World, chunkXYZ: V3i, memory: ^Memory = nil) -> 
 	assert(memory != nil, "memory should be available for chunk creation")
 	new_chunk := new(WorldChunk, memory.perm_alloc)
 	new_block := get_new_block(world, memory)
-	new_chunk^ = WorldChunk{new_block, chunkXYZ, nil}
+	new_chunk^ = WorldChunk{new_block, chunkXYZ, nil, {}}
 
 	new_chunk.next_in_hash = world.chunk_hash[h]
 	world.chunk_hash[h] = new_chunk

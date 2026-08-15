@@ -80,7 +80,7 @@ load_tilemap_asset :: proc(
 	assert(sheet.meta.size.w == i32(img.width) && sheet.meta.size.h == i32(img.height))
 	for slice in sheet.meta.slices {
 		visual := slice.name
-		assert(visual != .Invalid, "invalid TileVisual name in tilemap metadata")
+		assert(visual != .Empty, "invalid TileVisual name in tilemap metadata")
 		assert(!loaded[visual], fmt.tprintf("duplicate TileVisual: %v", visual))
 		assert(len(slice.keys) > 0, fmt.tprintf("tile has no bounds: %v", visual))
 		bounds := slice.keys[0].bounds
@@ -103,7 +103,7 @@ load_tilemap_asset :: proc(
 	}
 
 	for visual in TileVisual {
-		if visual == .Invalid {continue}
+		if visual == .Empty {continue}
 		assert(loaded[visual], fmt.tprintf("TileVisual missing from tilemap metadata: %v", visual))
 	}
 
@@ -111,7 +111,7 @@ load_tilemap_asset :: proc(
 }
 
 tile_from_tilemap_asset :: proc(asset: TileMapAsset, visual: TileVisual) -> Tile {
-	assert(visual != .Invalid)
+	assert(visual != .Empty)
 	tile := asset.tiles[visual]
 	assert(tile.image != nil, fmt.tprintf("TileVisual not loaded: %v", visual))
 	return tile

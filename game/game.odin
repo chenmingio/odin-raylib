@@ -78,7 +78,6 @@ GameState :: struct {
 	harpoon_shark_animation:   Animation, // animation and config
 	harpoon_sprite:            Sprite, // image and config
 	tilemap1:                  TileMapAsset,
-	game_map:                  [tileMapY][tileMapX]TileCell,
 	rock_images:               [4]^image.Image,
 	world:                     ^World,
 	collision_rule_hash:       [256]^PairwiseCollisionRule,
@@ -96,8 +95,6 @@ wall_size :: f32(0.3)
 
 ScreenPos :: V2
 
-tileMapX :: 16
-tileMapY :: 10
 
 BufferRectangle :: struct {
 	min: V2i,
@@ -148,33 +145,12 @@ update_and_render: UpdateAndRenderProc : proc(
 		game_state.camera_p = WorldPosition{V3i{}, V3{}}
 
 		world := new(World, game_memory.perm_alloc)
-		world.chunk_dim_in_meters = V3{10, 10, 10}
+		world.chunk_dim_in_meters = CHUNK_DIM_IN_METERS
 		game_state.world = world
 
-		// 地图
-		for y in 0 ..< tileMapY {
-			for x in 0 ..< tileMapX {
-				visual := TileVisual.Flat_Ground_Center
-				if (x == 0 && y == 0) {
-					visual = .Flat_Ground_Corner_Top_Left
-				} else if (x == tileMapX - 1 && y == 0) {
-					visual = .Flat_Ground_Corner_Top_Right
-				} else if (x == 0 && y == tileMapY - 1) {
-					visual = .Flat_Ground_Corner_Bottom_Left
-				} else if (x == tileMapX - 1 && y == tileMapY - 1) {
-					visual = .Flat_Ground_Corner_Bottom_Right
-				} else if (x == 0) {
-					visual = .Flat_Ground_Edge_Left
-				} else if (x == tileMapX - 1) {
-					visual = .Flat_Ground_Edge_Right
-				} else if (y == 0) {
-					visual = .Flat_Ground_Edge_Top
-				} else if (y == tileMapY - 1) {
-					visual = .Flat_Ground_Edge_Bottom
-				}
-				game_state.game_map[y][x] = TileCell{visual = visual, level = 0}
-			}
-		}
+		// 地形
+		add_tile_grass(world, game_memory, TileArea{V2i{0, 0}, V2i{3, 3}}, 0)
+
 		// 初始化玩家
 		// 以米为单位
 		player := LowEntity {
@@ -284,13 +260,6 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	// 画一个绿布
 	draw_rectangle(V2i{0, 0}, V2i{image_buffer.width, image_buffer.height}, GREEN, image_buffer)
-	for y in 0 ..< tileMapY {
-		for x in 0 ..< tileMapX {
-			cell := game_state.game_map[y][x]
-			tile := tile_from_tilemap_asset(game_state.tilemap1, cell.visual)
-			draw_tile_map(V2i{i32(x), i32(y)}, tile, image_buffer)
-		}
-	}
 
 	// 控制输入
 	move := V3{0, 0, 0}
@@ -339,6 +308,7 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	// camera追随player
 	game_state.camera_p = player.pos
+	draw_world_tile_maps(game_state, image_buffer)
 
 	// debug坐标轴
 	when ODIN_DEBUG {

@@ -9,11 +9,29 @@ EntityType :: enum {
 	Tree,
 	Wall,
 	Weapon,
+	Tile,
+}
+
+TileType :: enum {
 	Stair,
+	Flat,
+	Grass,
+	Water,
+}
+
+TileArea :: struct {
+	min:  V2i,
+	size: V2i,
+}
+
+TerrainPatch :: struct {
+	surface: TileVisual,
+	area:    TileArea,
+	level:   u8,
 }
 
 TileVisual :: enum u16 {
-	Invalid,
+	Empty,
 	Flat_Ground_Corner_Top_Left,
 	Flat_Ground_Edge_Top,
 	Flat_Ground_Corner_Top_Right,
@@ -240,4 +258,16 @@ add_low_entity :: proc(state: ^GameState, entity: LowEntity, memory: ^Memory) ->
 
 get_low_entity :: proc(state: ^GameState, index: u32) -> ^LowEntity {
 	return &state.low_entities[index]
+}
+
+add_tile_grass :: proc(world: ^World, memory: ^Memory, area: TileArea, level: u8) {
+	for x in area.min.x ..< area.min.x + area.size.x {
+		for y in area.min.y ..< area.min.y + area.size.y {
+			chunk_x, local_x := tile_axis_to_chunk(x, CHUNK_TILE_DIM.x)
+			chunk_y, local_y := tile_axis_to_chunk(y, CHUNK_TILE_DIM.y)
+			chunk := get_world_chunk(world, V3i{chunk_x, chunk_y, 0}, memory)
+			chunk.tile_map[local_y][local_x] =
+				TileVisual.Flat_Ground_Edge_Top
+		}
+	}
 }
