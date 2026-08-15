@@ -280,51 +280,6 @@ draw_image_corp :: proc(
 	}
 }
 
-// 从图集中裁剪并使用最近邻缩放绘制，适合保持 pixel art 的硬边缘。
-draw_image_corp_scaled :: proc(
-	left_top_buffer_pos: V2i,
-	dest_size: V2i,
-	img: ^image.Image,
-	buffer: OffScreenBuffer,
-	source_rect_size: V2i,
-	source_rect_pos: V2i,
-) {
-	if dest_size.x <= 0 || dest_size.y <= 0 {
-		return
-	}
-
-	sprite_rect := BufferRectangle {
-		min = left_top_buffer_pos,
-		max = left_top_buffer_pos + dest_size,
-	}
-	buffer_rect := BufferRectangle {
-		min = V2i{0, 0},
-		max = V2i{buffer.width, buffer.height},
-	}
-	draw_rect, ok := intersect_rect(sprite_rect, buffer_rect)
-	if !ok {
-		return
-	}
-
-	pixels := transmute([dynamic]u32)img^.pixels.buf
-	image_width := i32(img^.width)
-	for buffer_y in draw_rect.min.y ..< draw_rect.max.y {
-		dest_y := buffer_y - left_top_buffer_pos.y
-		source_y := source_rect_pos.y + dest_y * source_rect_size.y / dest_size.y
-		for buffer_x in draw_rect.min.x ..< draw_rect.max.x {
-			dest_x := buffer_x - left_top_buffer_pos.x
-			source_x := source_rect_pos.x + dest_x * source_rect_size.x / dest_size.x
-
-			source_index := source_y * image_width + source_x
-			target_index := buffer_y * buffer.width + buffer_x
-			blend(
-				buffer.data[target_index:target_index + 1],
-				pixels[source_index:source_index + 1],
-			)
-		}
-	}
-}
-
 // 两个矩形求交集
 intersect_rect :: proc(a, b: BufferRectangle) -> (BufferRectangle, bool) {
 	result := BufferRectangle {
@@ -340,8 +295,9 @@ intersect_rect :: proc(a, b: BufferRectangle) -> (BufferRectangle, bool) {
 // 以屏幕为原点的相对坐标 转换为 buffer的相对像素坐标（左上角为原点，xy倒置, z按比例兑换为y）
 rel_pos_to_buffer_pos :: proc(rel: V3, buffer: OffScreenBuffer) -> V2i {
 	return V2i {
-		buffer.width / 2 + i32(rel.x * SCALE),
-		buffer.height / 2 - i32(rel.y * SCALE) - i32(rel.z * SCALE * 1.0),
+		buffer.width / 2 + i32(rel.x * PIXELS_PER_METER),
+		buffer.height / 2 - i32(rel.y * PIXELS_PER_METER) -
+			i32(rel.z * PIXELS_PER_METER),
 	}
 }
 
@@ -574,22 +530,16 @@ draw_tile :: proc(
 	buffer: OffScreenBuffer,
 ) {
 	tile := tile_from_tilemap_asset(tilemap, visual)
-	dest_width := max(i32(meter_to_pixel(TILE_SIDE_IN_METERS)), 1)
-	dest_height := max(
-		(tile.frame_size.y * dest_width + tile.frame_size.x / 2) / tile.frame_size.x,
-		1,
-	)
 
 	// pos 是 tile 在世界中的左下角；图片绘制接口需要 buffer 中的左上角。
 	left_bottom_buffer_pos := rel_pos_to_buffer_pos(V3{pos.x, pos.y, 0}, buffer)
-	left_top_buffer_pos := left_bottom_buffer_pos - V2i{0, dest_height}
-	draw_image_corp_scaled(
+	left_top_buffer_pos := left_bottom_buffer_pos - V2i{0, tile.frame_size.y}
+	draw_image_corp(
 		left_top_buffer_pos,
-		V2i{dest_width, dest_height},
 		tile.image,
 		buffer,
-		tile.frame_size,
-		tile.frame_pos,
+		source_rect_size = tile.frame_size,
+		source_rect_pos = tile.frame_pos,
 	)
 }
 
