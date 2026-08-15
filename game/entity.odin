@@ -260,14 +260,58 @@ get_low_entity :: proc(state: ^GameState, index: u32) -> ^LowEntity {
 	return &state.low_entities[index]
 }
 
+flat_ground_visual_for_tile :: proc(area: TileArea, tile_pos: V2i) -> TileVisual {
+	assert(area.size.x > 0 && area.size.y > 0)
+	max_pos := area.min + area.size - 1
+	assert(
+		tile_pos.x >= area.min.x && tile_pos.x <= max_pos.x &&
+			tile_pos.y >= area.min.y && tile_pos.y <= max_pos.y,
+	)
+
+	is_left := tile_pos.x == area.min.x
+	is_right := tile_pos.x == max_pos.x
+	is_bottom := tile_pos.y == area.min.y
+	is_top := tile_pos.y == max_pos.y
+
+	if area.size.x == 1 && area.size.y == 1 {
+		return .Flat_Ground_Isolated
+	}
+	if area.size.x == 1 {
+		if is_top {return .Flat_Ground_Narrow_Vertical_Top}
+		if is_bottom {return .Flat_Ground_Narrow_Vertical_Bottom}
+		return .Flat_Ground_Narrow_Vertical_Middle
+	}
+	if area.size.y == 1 {
+		if is_left {return .Flat_Ground_Narrow_Horizontal_Left}
+		if is_right {return .Flat_Ground_Narrow_Horizontal_Right}
+		return .Flat_Ground_Narrow_Horizontal_Middle
+	}
+
+	if is_top {
+		if is_left {return .Flat_Ground_Corner_Top_Left}
+		if is_right {return .Flat_Ground_Corner_Top_Right}
+		return .Flat_Ground_Edge_Top
+	}
+	if is_bottom {
+		if is_left {return .Flat_Ground_Corner_Bottom_Left}
+		if is_right {return .Flat_Ground_Corner_Bottom_Right}
+		return .Flat_Ground_Edge_Bottom
+	}
+	if is_left {return .Flat_Ground_Edge_Left}
+	if is_right {return .Flat_Ground_Edge_Right}
+	return .Flat_Ground_Center
+}
+
 add_tile_grass :: proc(world: ^World, memory: ^Memory, area: TileArea, level: u8) {
-	for x in area.min.x ..< area.min.x + area.size.x {
-		for y in area.min.y ..< area.min.y + area.size.y {
+	assert(area.size.x > 0 && area.size.y > 0)
+	_ = level // tile_map 改成 TileCell 后再保存高度。
+
+	for y in area.min.y ..< area.min.y + area.size.y {
+		for x in area.min.x ..< area.min.x + area.size.x {
 			chunk_x, local_x := tile_axis_to_chunk(x, CHUNK_TILE_DIM.x)
 			chunk_y, local_y := tile_axis_to_chunk(y, CHUNK_TILE_DIM.y)
 			chunk := get_world_chunk(world, V3i{chunk_x, chunk_y, 0}, memory)
-			chunk.tile_map[local_y][local_x] =
-				TileVisual.Flat_Ground_Edge_Top
+			chunk.tile_map[local_y][local_x] = flat_ground_visual_for_tile(area, V2i{x, y})
 		}
 	}
 }
