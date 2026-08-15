@@ -264,8 +264,10 @@ flat_ground_visual_for_tile :: proc(area: TileArea, tile_pos: V2i) -> TileVisual
 	assert(area.size.x > 0 && area.size.y > 0)
 	max_pos := area.min + area.size - 1
 	assert(
-		tile_pos.x >= area.min.x && tile_pos.x <= max_pos.x &&
-			tile_pos.y >= area.min.y && tile_pos.y <= max_pos.y,
+		tile_pos.x >= area.min.x &&
+		tile_pos.x <= max_pos.x &&
+		tile_pos.y >= area.min.y &&
+		tile_pos.y <= max_pos.y,
 	)
 
 	is_left := tile_pos.x == area.min.x

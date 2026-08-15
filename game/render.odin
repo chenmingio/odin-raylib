@@ -29,7 +29,7 @@ draw_entity_body_rectangle :: proc(
 	buffer: OffScreenBuffer,
 ) {
 	draw_rectangle(
-		entity_top_left_from_anchoranchor(entity_anchor_buffer_pos, size_px),
+		entity_top_left_from_anchor(entity_anchor_buffer_pos, size_px),
 		size_px,
 		RED,
 		buffer,
@@ -296,15 +296,11 @@ intersect_rect :: proc(a, b: BufferRectangle) -> (BufferRectangle, bool) {
 rel_pos_to_buffer_pos :: proc(rel: V3, buffer: OffScreenBuffer) -> V2i {
 	return V2i {
 		buffer.width / 2 + i32(rel.x * PIXELS_PER_METER),
-		buffer.height / 2 - i32(rel.y * PIXELS_PER_METER) -
-			i32(rel.z * PIXELS_PER_METER),
+		buffer.height / 2 - i32(rel.y * PIXELS_PER_METER) - i32(rel.z * PIXELS_PER_METER),
 	}
 }
 
-entity_top_left_from_anchoranchor :: proc(
-	entity_anchor_buffer_posanchor: V2i,
-	size_px: V2i,
-) -> V2i {
+entity_top_left_from_anchor :: proc(entity_anchor_buffer_posanchor: V2i, size_px: V2i) -> V2i {
 	// 对象左上角 = 屏幕中心 + 相对偏移 - 重心到左上角调整(半宽, 全高)
 	return entity_anchor_buffer_posanchor - V2i{size_px.x / 2, size_px.y}
 }
@@ -466,7 +462,7 @@ render_sim_region :: proc(
 			i32(meter_to_pixel(entity.size.x)),
 			i32(meter_to_pixel(entity.size.y)),
 		}
-		top_left_buffer_pos := entity_top_left_from_anchoranchor(
+		top_left_buffer_pos := entity_top_left_from_anchor(
 			entity_anchor_buffer_pos,
 			entity_size_px,
 		)
@@ -523,12 +519,7 @@ render_sim_region :: proc(
 	}
 }
 
-draw_tile :: proc(
-	visual: TileVisual,
-	pos: V2,
-	tilemap: TileMapAsset,
-	buffer: OffScreenBuffer,
-) {
+draw_tile :: proc(visual: TileVisual, pos: V2, tilemap: TileMapAsset, buffer: OffScreenBuffer) {
 	tile := tile_from_tilemap_asset(tilemap, visual)
 
 	// pos 是 tile 在世界中的左下角；图片绘制接口需要 buffer 中的左上角。

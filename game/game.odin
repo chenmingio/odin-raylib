@@ -91,7 +91,7 @@ CorppedImage :: struct {
 }
 
 
-wall_size :: f32(0.3)
+WALL_SIZE :: f32(0.3)
 
 ScreenPos :: V2
 
@@ -197,7 +197,7 @@ update_and_render: UpdateAndRenderProc : proc(
 			entity := LowEntity {
 				pos      = WorldPosition{V3i{0, 0, 0}, V3{f32(i), 0, 0}},
 				type     = EntityType.Wall,
-				size     = V3{wall_size, wall_size, wall_size},
+				size     = V3{WALL_SIZE, WALL_SIZE, WALL_SIZE},
 				collides = true,
 			}
 			add_low_entity(game_state, entity, game_memory)
@@ -213,15 +213,6 @@ update_and_render: UpdateAndRenderProc : proc(
 			game_state.rock_images[i] = rock
 		}
 
-		// 加载asset
-		// 载入地面
-		game_state.tilemap1 = load_tilemap_asset(
-			game_memory,
-			"resources/Terrain/Tilemap_color1.png",
-			"resources/Terrain/Tilemap_color1.json",
-		)
-
-		// 载入单位动画
 		game_state.unit_animate_assets = load_aseprite_assets(
 			game_memory,
 			game_state,
@@ -253,6 +244,13 @@ update_and_render: UpdateAndRenderProc : proc(
 			V2i{95, 130} + V2i{25, -45},
 		)
 
+		// 加载asset
+		// 载入地面
+		game_state.tilemap1 = load_tilemap_asset(
+			game_memory,
+			"resources/Terrain/Tilemap_color1.png",
+			"resources/Terrain/Tilemap_color1.json",
+		)
 
 		// 完成初始化
 		game_memory.is_initialized = true
