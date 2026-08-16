@@ -434,47 +434,6 @@ handle_collision :: proc(
 	return true
 }
 
-// 模拟的浮点坐标转换为low entity的低精度坐标
-map_into_chunk_space :: proc(
-	world: ^World,
-	rel_pos: [3]f32,
-	camera_pos: WorldPosition,
-) -> WorldPosition {
-	result := camera_pos
-	result.offset.x += rel_pos.x
-	result.offset.y += rel_pos.y
-	result.offset.z += rel_pos.z
-
-	return canonicalize(world, result)
-}
-
-// 重新放置low entity的chunk位置
-change_entity_location :: proc(
-	low_entity: ^LowEntity,
-	low_entity_storage_index: u32,
-	new_pos: WorldPosition,
-	state: ^GameState,
-	memory: ^Memory,
-	remove: bool,
-) {
-	oldPos := low_entity.pos
-	old_chunk := get_world_chunk(state.world, oldPos.chunkXYZ, memory)
-	assert(old_chunk != nil)
-
-	if (remove) {
-		remove_entity_index_from_hash_chunk(low_entity_storage_index, old_chunk, state)
-		return
-	}
-
-	// 同一个chunk里不用变
-	if (low_entity.pos.chunkXYZ == new_pos.chunkXYZ) {
-		return
-	}
-
-	remove_entity_index_from_hash_chunk(low_entity_storage_index, old_chunk, state)
-	add_entity_index_to_hash_chunk(state, memory, low_entity_storage_index, new_pos.chunkXYZ)
-}
-
 // 把计算好的high entity对应的状态（目前是未知）更新回原来的low entity
 end_sim :: proc(state: ^GameState, sim_region: ^SimRegion, memory: ^Memory) {
 	high_entities := sim_region.entities[:sim_region.entity_count]

@@ -164,17 +164,3 @@ get_world_chunk :: proc(world: ^World, chunkXYZ: V3i, memory: ^Memory = nil) -> 
 	world.chunk_hash[h] = new_chunk
 	return new_chunk
 }
-
-make_entity_spatial :: proc(
-	ety: ^LowEntity,
-	ety_index: u32,
-	pos: WorldPosition,
-	game_state: ^GameState,
-	game_memory: ^Memory,
-) {
-	canonical_pos := canonicalize(game_state.world, pos)
-	ety.pos = canonical_pos
-	assert(ety.non_spatial == true)
-	ety.non_spatial = false
-	add_entity_index_to_hash_chunk(game_state, game_memory, ety_index, canonical_pos.chunkXYZ)
-}

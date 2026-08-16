@@ -1,7 +1,10 @@
 package game
 
+import "core:encoding/json"
 import "core:fmt"
 import "core:image"
+import "core:image/png" // 注册 PNG 加载器
+import "core:os"
 import "core:strconv"
 import "core:strings"
 
@@ -66,6 +69,26 @@ Sprite :: struct {
 	anchor_in_frame: V2i, // 锚点距离image左上角的距离
 }
 
+load_aseprite_assets :: proc(
+	game_memory: ^Memory,
+	game_state: ^GameState,
+	file_path: string,
+	json_path: string,
+) -> AseSpriteAsset {
+	img, img_err := image.load_from_file(file_path, {}, game_memory.temp_alloc)
+	assert(img_err == nil)
+
+	json_data, json_err := os.read_entire_file(json_path, game_memory.temp_alloc)
+	assert(json_err == nil)
+
+	assets := AseSpriteAsset{}
+	parse_err := json.unmarshal(json_data, &assets.sheet)
+	assets.image = img
+	assert(parse_err == nil)
+
+	return assets
+}
+
 sprite_from_assets :: proc(assets: AseSpriteAsset, key: string, anchor_in_source: V2i) -> Sprite {
 	anim_frame, ok := assets.sheet.frames[key]
 	assert(ok, "frame not found")
@@ -110,4 +133,24 @@ animation_from_assets :: proc(
 	}
 
 	return result
+}
+
+update_animate_frame_index :: proc(entity: ^LowEntity, animation: Animation) {
+	clip := animation.clips[entity.status]
+	clip_frames := clip.frames
+	assert(len(clip_frames) > 0)
+
+	elapsed_time :=
+		(entity.status == EntityStatus.Throw) ? entity.anim_elapsed_time : entity.anim_elapsed_time % clip.total_duration
+
+	acc: i32 = 0
+	for idx in 0 ..< len(clip_frames) {
+		frame := clip_frames[idx]
+		if acc + frame.duration > elapsed_time {
+			entity.anim_frame_idx = i32(idx)
+			break
+		} else {
+			acc += frame.duration
+		}
+	}
 }
