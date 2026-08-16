@@ -77,11 +77,6 @@ GameState :: struct {
 
 WALL_SIZE :: f32(0.3)
 
-BufferRectangle :: struct {
-	min: V2i,
-	max: V2i,
-}
-
 Memory :: struct {
 	is_initialized:    bool,
 	permanent_storage: []byte,
