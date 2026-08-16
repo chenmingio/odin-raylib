@@ -148,6 +148,7 @@ update_and_render: UpdateAndRenderProc : proc(
 
 		// 地形
 		add_tile_grass(world, game_memory, TileArea{V2i{0, 0}, V2i{3, 3}}, 0)
+		add_tile_grass(world, game_memory, TileArea{V2i{3, -3}, V2i{4, 5}}, 0)
 
 		// 初始化玩家
 		// 以米为单位
@@ -304,7 +305,6 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	// camera追随player
 	game_state.camera_p = player.pos
-	draw_world_tile_maps(game_state, image_buffer)
 
 	// debug坐标轴
 	when ODIN_DEBUG {

@@ -443,9 +443,22 @@ draw_entity_hit_point :: proc(
 render_sim_region :: proc(
 	sim_region: ^SimRegion,
 	image_buffer: OffScreenBuffer,
-	game_state: ^GameState,
+	state: ^GameState,
 	dt: f32,
 ) {
+	camera_bound_rel := V3{CAMERA_VIEW_SPAN_X_IN_METERS, CAMERA_VIEW_SPAN_Y_IN_METERS, 0} / 2
+
+	camera_bounds_min := world_pos_minus(state.world, state.camera_p, camera_bound_rel)
+	camera_bounds_max := world_pos_add(state.world, state.camera_p, camera_bound_rel)
+	camera_bounds := Box{-camera_bound_rel, camera_bound_rel}
+
+	for x in camera_bounds_min.chunkXYZ.x ..= camera_bounds_max.chunkXYZ.x {
+		for y in camera_bounds_min.chunkXYZ.y ..= camera_bounds_max.chunkXYZ.y {
+			chunk := get_world_chunk(state.world, V3i{x, y, 0}, nil)
+			assert(chunk != nil)
+			draw_chunk_tile_map(chunk, state, image_buffer)
+		}
+	}
 
 	entities := sim_region.entities[:sim_region.entity_count]
 
@@ -476,7 +489,7 @@ render_sim_region :: proc(
 		case .Player:
 			draw_entity_animation(
 				entity_anchor_buffer_pos,
-				game_state.unit_animate,
+				state.unit_animate,
 				entity,
 				image_buffer,
 				dt,
@@ -491,7 +504,7 @@ render_sim_region :: proc(
 		case .Wall:
 			draw_entity_image(
 				entity_anchor_buffer_pos,
-				game_state^.rock_images[0],
+				state^.rock_images[0],
 				entity,
 				image_buffer,
 				V2i{32, 48},
@@ -500,19 +513,13 @@ render_sim_region :: proc(
 		case .Enemy:
 			draw_entity_animation(
 				entity_anchor_buffer_pos,
-				game_state.harpoon_shark_animation,
+				state.harpoon_shark_animation,
 				entity,
 				image_buffer,
 				dt,
 			)
 		case .Weapon:
-			draw_sprite(
-				entity_anchor_buffer_pos,
-				game_state.harpoon_sprite,
-				entity,
-				image_buffer,
-				dt,
-			)
+			draw_sprite(entity_anchor_buffer_pos, state.harpoon_sprite, entity, image_buffer, dt)
 		case .Null:
 			break
 		}
@@ -543,14 +550,6 @@ draw_chunk_tile_map :: proc(chunk: ^WorldChunk, state: ^GameState, buffer: OffSc
 			}
 			tile_pos_xy := chunk_rel_pos.xy + V2{f32(x), f32(y)} * TILE_SIDE_IN_METERS
 			draw_tile(visual, tile_pos_xy, state.tilemap1, buffer)
-		}
-	}
-}
-
-draw_world_tile_maps :: proc(state: ^GameState, buffer: OffScreenBuffer) {
-	for first_chunk in state.world.chunk_hash {
-		for chunk := first_chunk; chunk != nil; chunk = chunk.next_in_hash {
-			draw_chunk_tile_map(chunk, state, buffer)
 		}
 	}
 }
