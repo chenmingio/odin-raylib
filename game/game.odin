@@ -16,8 +16,6 @@ V3 :: linalg.Vector3f32
 V2i :: [2]i32
 V3i :: [3]i32
 
-PIXELS_PER_METER :: f32(64)
-
 meter_to_pixel_v1 :: proc(x: f32) -> i32 {
 	return i32(x * PIXELS_PER_METER)
 }

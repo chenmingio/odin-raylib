@@ -52,11 +52,11 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory, dt: f32) -> SimRegion {
 	// 位于camera边缘的entity以最快速度达到的边缘
 	margin_radius := result.max_entity_radius * 2 + result.max_entity_velocity * dt
 
-	Tile_Span_X :: 17 * 3 * 1.4
-	Tile_Span_Y :: 9 * 3 * 1.4
-	Tile_Span_Z :: 3 * 1.4
-
-	camera_bound_rel := V3{Tile_Span_X, Tile_Span_Y, Tile_Span_Z} / 2
+	camera_bound_rel := V3 {
+		CAMERA_VIEW_SPAN_X_IN_METERS,
+		CAMERA_VIEW_SPAN_Y_IN_METERS,
+		CAMERA_VIEW_SPAN_Z_IN_METERS,
+	} / 2
 
 	camera_bounds_min := world_pos_minus(state.world, state.camera_p, camera_bound_rel)
 	camera_bounds_max := world_pos_add(state.world, state.camera_p, camera_bound_rel)

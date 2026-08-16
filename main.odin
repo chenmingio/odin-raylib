@@ -31,8 +31,8 @@ main :: proc() {
 	// name := rl.GetMonitorName(rl.GetCurrentMonitor())
 	// monitorRefreshRate := rl.GetMonitorRefreshRate(rl.GetCurrentMonitor())
 
-	screen_width := i32(5120 / 2 / 2)
-	screen_height := i32(2880 / 2 / 2)
+	screen_width := game.RENDER_WIDTH_IN_PIXELS
+	screen_height := game.RENDER_HEIGHT_IN_PIXELS
 	target_fps := i32(32)
 
 	rl.SetTargetFPS(target_fps)
