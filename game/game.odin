@@ -82,16 +82,6 @@ BufferRectangle :: struct {
 	max: V2i,
 }
 
-Rectangle :: struct {
-	min: V2,
-	max: V2,
-}
-
-Box :: struct {
-	min: V3,
-	max: V3,
-}
-
 Memory :: struct {
 	is_initialized:    bool,
 	permanent_storage: []byte,
