@@ -82,17 +82,7 @@ GameState :: struct {
 	first_free_collision_rule: ^PairwiseCollisionRule,
 }
 
-CorppedImage :: struct {
-	image:  ^image.Image,
-	size:   V2i,
-	offset: V2i,
-}
-
-
 WALL_SIZE :: f32(0.3)
-
-ScreenPos :: V2
-
 
 BufferRectangle :: struct {
 	min: V2i,

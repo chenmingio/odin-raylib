@@ -305,20 +305,6 @@ entity_top_left_from_anchor :: proc(entity_anchor_buffer_posanchor: V2i, size_px
 	return entity_anchor_buffer_posanchor - V2i{size_px.x / 2, size_px.y}
 }
 
-draw_entity_size :: proc(rel_position: V3, size: V2, buffer: OffScreenBuffer) {
-	// 把相对位置（单位m）转换成对应屏幕上的位置（pixel）
-	rel_pos_px := meter_to_pixel(rel_position)
-	rel_px := V2i{i32(rel_pos_px.x), -i32(rel_pos_px.y)} // 上为负??
-
-	// 玩家帧尺寸 or 一般实体尺寸（米→像素）
-	size_px := V2i{i32(meter_to_pixel(size.x)), i32(meter_to_pixel(size.y))}
-
-	// 对象左上角 = 屏幕中心 + 相对偏移 - 重心到左上角调整(半宽, 全高)
-	screen_center := V2i{buffer.width / 2, buffer.height / 2}
-	top_left := screen_center + rel_px - V2i{size_px.x / 2, size_px.y}
-
-}
-
 draw_entity_image :: proc(
 	dest_buffer_pos: V2i,
 	image: ^image.Image,

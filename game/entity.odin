@@ -12,22 +12,9 @@ EntityType :: enum {
 	Tile,
 }
 
-TileType :: enum {
-	Stair,
-	Flat,
-	Grass,
-	Water,
-}
-
 TileArea :: struct {
 	min:  V2i,
 	size: V2i,
-}
-
-TerrainPatch :: struct {
-	surface: TileVisual,
-	area:    TileArea,
-	level:   u8,
 }
 
 TileVisual :: enum u16 {
@@ -74,11 +61,6 @@ TileVisual :: enum u16 {
 	Elevated_Ground_Narrow_Horizontal_Cliff_Middle,
 	Elevated_Ground_Narrow_Horizontal_Cliff_Right,
 	Elevated_Ground_Isolated_Cliff,
-}
-
-TileCell :: struct {
-	visual: TileVisual,
-	level:  i8,
 }
 
 EntityStatus :: enum {
@@ -152,18 +134,6 @@ SimEntity :: struct {
 	updatable:     bool,
 }
 
-
-// 获取活跃实体
-// 目前是camera范围里10米的chunk
-active_entities :: proc(state: ^GameState) -> []LowEntity {
-	camera_pos_chunk := state.camera_p.chunkXYZ
-	for x in camera_pos_chunk.x - 10 ..< camera_pos_chunk.x + 10 {
-		for y in camera_pos_chunk.y - 5 ..< camera_pos_chunk.y + 5 {
-
-		}
-	}
-	return state.low_entities[:state.low_entity_count]
-}
 
 // 添加entity-index到chunk HashMap里
 add_entity_index_to_hash_chunk :: proc(
@@ -306,7 +276,7 @@ flat_ground_visual_for_tile :: proc(area: TileArea, tile_pos: V2i) -> TileVisual
 
 add_tile_grass :: proc(world: ^World, memory: ^Memory, area: TileArea, level: u8) {
 	assert(area.size.x > 0 && area.size.y > 0)
-	_ = level // tile_map 改成 TileCell 后再保存高度。
+	_ = level // 高度尚未写入 tile_map。
 
 	for y in area.min.y ..< area.min.y + area.size.y {
 		for x in area.min.x ..< area.min.x + area.size.x {

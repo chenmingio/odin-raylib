@@ -8,7 +8,6 @@ import "core:math/linalg"
 SimRegion :: struct {
 	entities:            [4096]SimEntity, // 复制数据（而不是id或者指针），方便模拟和修改
 	entity_count:        u32,
-	space:               BufferRectangle,
 	debug_collision:     CollisionDebug,
 	max_entity_radius:   f32,
 	max_entity_velocity: f32,
@@ -166,45 +165,6 @@ intersect_interval :: proc(a: Interval, b: Interval) -> Interval {
 		} else {
 			return Interval{0, 0, false}
 		}
-	}
-}
-
-collide_convex_polygon_swept :: proc(ety_a: ^SimEntity, ety_b: ^SimEntity, time: f32) {
-	rel_velocity := ety_a.low_entity.dp - ety_b.low_entity.dp
-	// 画出minkowski对应的碰撞体积
-	// 把原点放在B的中心，原点 in (A-B)?
-	// A - B = A + B（矩形在原点上反转不变） = 以A为中心外面加1/2B的扩大矩形
-	c_a := high_entity_rect_center(ety_a)
-	c_b := high_entity_rect_center(ety_b)
-	// B为原点，A是A-B
-	pos_A := c_a - c_b
-	extented_A_half := (ety_a.low_entity.size.xz + ety_b.low_entity.size.xz) / 2
-	extented_A := Rectangle{c_a - extented_A_half, c_a + extented_A_half}
-	min := extented_A.min
-	max := extented_A.max
-	ccw_corners := [4]V2{min, V2{max.x, min.y}, max, V2{min.x, max.y}}
-
-	dts := [4]Interval{}
-	for i in 0 ..< len(ccw_corners) {
-		from := ccw_corners[i]
-		to := ccw_corners[(i + 1) % len(ccw_corners)]
-		hp := half_plane_from_ccw_points(from, to)
-		dts[i] = dt_in_half_plane(V2{0, 0}, rel_velocity.xy, hp)
-	}
-
-	inside_span := Interval{0, time, true}
-	for i in 0 ..< len(dts) {
-		inside_span = intersect_interval(inside_span, dts[i])
-	}
-
-	if inside_span.valid {
-		ety_a_new_pos := ety_a.low_entity.dp * inside_span.min
-		ety_a.p.x += ety_a_new_pos.x
-		ety_a.p.y += ety_a_new_pos.y
-
-		ety_b_new_pos := ety_b.low_entity.dp * inside_span.min
-		ety_b.p.x += ety_b_new_pos.x
-		ety_b.p.y += ety_b_new_pos.y
 	}
 }
 
