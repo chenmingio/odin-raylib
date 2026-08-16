@@ -86,3 +86,23 @@ unload_game_code :: proc(code: ^RayLibGameCode) {
 	code^.game_update_and_render = game_update_and_render_stub
 	code^.game_get_sound_samples = game_get_sound_samples_stub
 }
+
+reload_game_code_if_changed :: proc(code: ^RayLibGameCode) -> bool {
+	file_info, err := os.stat(GAME_DLL_PATH, context.allocator)
+	if err != os.ERROR_NONE {
+		fmt.println("无法获取文件信息：", err)
+		return false
+	}
+
+	current_write_time := file_info.modification_time
+	os.file_info_delete(file_info, context.allocator)
+	if time.diff(code.last_write_time, current_write_time) <= 0 {
+		return false
+	}
+
+	fmt.println("游戏代码已更新，重新加载...")
+	unload_game_code(code)
+	code^ = load_game_code()
+	code.last_write_time = current_write_time
+	return true
+}

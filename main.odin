@@ -1,10 +1,7 @@
 package main
 
-import "core:fmt"
 import "core:mem"
-import "core:os"
 import "core:slice"
-import "core:time"
 import "game"
 import "platform"
 import rl "vendor:raylib"
@@ -146,14 +143,7 @@ main :: proc() {
 			platform.loop_read_input(&record_state, &game_input)
 		} else {
 			// 正常模式：获取真实输入
-			keyboard_controller^.move_up.ended_down = rl.IsKeyDown(rl.KeyboardKey.W)
-			keyboard_controller^.move_down.ended_down = rl.IsKeyDown(rl.KeyboardKey.S)
-			keyboard_controller^.move_left.ended_down = rl.IsKeyDown(rl.KeyboardKey.A)
-			keyboard_controller^.move_right.ended_down = rl.IsKeyDown(rl.KeyboardKey.D)
-			keyboard_controller^.action_up.ended_down = rl.IsKeyDown(rl.KeyboardKey.I)
-			keyboard_controller^.action_down.ended_down = rl.IsKeyDown(rl.KeyboardKey.K)
-			keyboard_controller^.action_left.ended_down = rl.IsKeyDown(rl.KeyboardKey.J)
-			keyboard_controller^.action_right.ended_down = rl.IsKeyDown(rl.KeyboardKey.L)
+			platform.update_keyboard_controller(keyboard_controller)
 
 			// 录制模式：保存输入到文件
 			if record_state.is_recording {
@@ -166,20 +156,7 @@ main :: proc() {
 		if frame_counter > 60 {
 			frame_counter = 0
 
-			// 查看游戏库，如果修改时间晚于上次的记录时间，就重新加载
-			file_info, err := os.stat(platform.GAME_DLL_PATH, context.allocator)
-			if err == os.ERROR_NONE {
-				current_write_time := file_info.modification_time
-				os.file_info_delete(file_info, context.allocator)
-				if time.diff(game_code.last_write_time, current_write_time) > 0 {
-					fmt.println("游戏代码已更新，重新加载...")
-					platform.unload_game_code(&game_code)
-					game_code = platform.load_game_code()
-					game_code.last_write_time = current_write_time
-				}
-			} else {
-				fmt.println("无法获取文件信息：", err)
-			}
+			platform.reload_game_code_if_changed(&game_code)
 		}
 		// pause
 		if rl.IsKeyPressed(rl.KeyboardKey.P) {
