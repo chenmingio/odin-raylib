@@ -54,14 +54,9 @@ render_sim_region :: proc(
 		// 下面计算把worldPos（米）转换为buffer使用的坐标（pixel）
 		entity_anchor_buffer_pos := rel_pos_to_buffer_pos(sim_entity.p, image_buffer)
 
-		// 玩家帧尺寸 or 一般实体尺寸（米→像素）
-		entity_size_px := V2i {
-			i32(meter_to_pixel(low_entity.size.x)),
-			i32(meter_to_pixel(low_entity.size.y)),
-		}
-
 		#partial switch low_entity.type {
 		case .Player:
+			entity_size_px := meter_to_pixel(low_entity.size.xy)
 			draw_entity_animation(
 				entity_anchor_buffer_pos,
 				state.unit_animate,
