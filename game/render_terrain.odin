@@ -26,7 +26,7 @@ draw_chunk_tile_map :: proc(chunk: ^WorldChunk, state: ^GameState, buffer: OffSc
 			tile_pos := chunk_rel_pos + V3 {
 				f32(x) * TILE_SIDE_IN_METERS,
 				f32(y) * TILE_SIDE_IN_METERS,
-				tile_level_to_z(tile.level),
+				0,
 			}
 			draw_tile(tile.visual, tile_pos, state.tilemap1, buffer)
 		}

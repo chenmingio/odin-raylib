@@ -161,10 +161,6 @@ tile_from_tilemap_asset :: proc(asset: TileMapAsset, visual: TileVisual) -> Tile
 	return tile
 }
 
-tile_level_to_z :: proc(level: u8) -> f32 {
-	return f32(level) * TILE_LEVEL_HEIGHT_IN_METERS
-}
-
 stair_visual_for_direction :: proc(direction: StairDirection) -> TileVisual {
 	if direction == .Left {
 		return .Stairs_Side_Left
@@ -216,18 +212,101 @@ flat_ground_visual_for_tile :: proc(area: TileArea, tile_pos: V2i) -> TileVisual
 	return .Flat_Ground_Center
 }
 
+elevated_ground_visual_for_tile :: proc(area: TileArea, tile_pos: V2i) -> TileVisual {
+	assert(area.size.x > 0 && area.size.y > 0)
+	max_pos := area.min + area.size - 1
+	assert(
+		tile_pos.x >= area.min.x &&
+		tile_pos.x <= max_pos.x &&
+		tile_pos.y >= area.min.y &&
+		tile_pos.y <= max_pos.y,
+	)
+
+	is_left := tile_pos.x == area.min.x
+	is_right := tile_pos.x == max_pos.x
+	is_bottom := tile_pos.y == area.min.y
+	is_cliff_top := tile_pos.y == area.min.y + 1
+	is_top := tile_pos.y == max_pos.y
+
+	if area.size.x == 1 {
+		if area.size.y == 1 {return .Elevated_Ground_Isolated_Cliff}
+		if is_top {return .Elevated_Ground_Narrow_Vertical_Top}
+		if is_bottom {return .Elevated_Ground_Narrow_Vertical_Cliff_Face}
+		if is_cliff_top {return .Elevated_Ground_Narrow_Vertical_Cliff_Top}
+		return .Elevated_Ground_Narrow_Vertical_Middle
+	}
+
+	if area.size.y == 1 {
+		if is_left {return .Elevated_Ground_Narrow_Horizontal_Cliff_Left}
+		if is_right {return .Elevated_Ground_Narrow_Horizontal_Cliff_Right}
+		return .Elevated_Ground_Narrow_Horizontal_Cliff_Middle
+	}
+
+	if area.size.y == 2 {
+		if is_top {
+			if is_left {return .Elevated_Ground_Narrow_Horizontal_Left}
+			if is_right {return .Elevated_Ground_Narrow_Horizontal_Right}
+			return .Elevated_Ground_Narrow_Horizontal_Middle
+		}
+		if is_left {return .Elevated_Ground_Narrow_Horizontal_Cliff_Left}
+		if is_right {return .Elevated_Ground_Narrow_Horizontal_Cliff_Right}
+		return .Elevated_Ground_Narrow_Horizontal_Cliff_Middle
+	}
+
+	if is_top {
+		if is_left {return .Elevated_Ground_Corner_Top_Left}
+		if is_right {return .Elevated_Ground_Corner_Top_Right}
+		return .Elevated_Ground_Edge_Top
+	}
+	if is_bottom {
+		if is_left {return .Elevated_Ground_Cliff_Face_Left}
+		if is_right {return .Elevated_Ground_Cliff_Face_Right}
+		return .Elevated_Ground_Cliff_Face
+	}
+	if is_cliff_top {
+		if is_left {return .Elevated_Ground_Cliff_Top_Left}
+		if is_right {return .Elevated_Ground_Cliff_Top_Right}
+		return .Elevated_Ground_Cliff_Top
+	}
+	if is_left {return .Elevated_Ground_Edge_Left}
+	if is_right {return .Elevated_Ground_Edge_Right}
+	return .Elevated_Ground_Center
+}
+
+grass_visual_for_tile :: proc(area: TileArea, tile_pos: V2i, level: u8) -> TileVisual {
+	if level == 0 {
+		return flat_ground_visual_for_tile(area, tile_pos)
+	}
+	return elevated_ground_visual_for_tile(area, tile_pos)
+}
+
+set_terrain_tile :: proc(
+	world: ^World,
+	memory: ^Memory,
+	tile_pos: V2i,
+	tile: TerrainTile,
+) {
+	chunk_x, local_x := tile_axis_to_chunk(tile_pos.x, CHUNK_TILE_DIM.x)
+	chunk_y, local_y := tile_axis_to_chunk(tile_pos.y, CHUNK_TILE_DIM.y)
+	chunk := get_world_chunk(world, V3i{chunk_x, chunk_y, 0}, memory)
+	chunk.tile_map[local_y][local_x] = tile
+}
+
 add_tile_grass :: proc(world: ^World, memory: ^Memory, area: TileArea, level: u8) {
 	assert(area.size.x > 0 && area.size.y > 0)
 
 	for y in area.min.y ..< area.min.y + area.size.y {
 		for x in area.min.x ..< area.min.x + area.size.x {
-			chunk_x, local_x := tile_axis_to_chunk(x, CHUNK_TILE_DIM.x)
-			chunk_y, local_y := tile_axis_to_chunk(y, CHUNK_TILE_DIM.y)
-			chunk := get_world_chunk(world, V3i{chunk_x, chunk_y, 0}, memory)
-			chunk.tile_map[local_y][local_x] = TerrainTile {
-				visual = flat_ground_visual_for_tile(area, V2i{x, y}),
-				level  = level,
-			}
+			tile_pos := V2i{x, y}
+			set_terrain_tile(
+				world,
+				memory,
+				tile_pos,
+				TerrainTile {
+					visual = grass_visual_for_tile(area, tile_pos, level),
+					level  = level,
+				},
+			)
 		}
 	}
 }
@@ -251,12 +330,13 @@ add_stair_grass :: proc(
 				V3 {
 					f32(local_x) * TILE_SIDE_IN_METERS,
 					f32(local_y) * TILE_SIDE_IN_METERS,
-					tile_level_to_z(level),
+					0,
 				},
 			),
 			type            = .Stair,
 			moveable        = false,
 			stair_direction = direction,
+			stair_level     = level,
 		},
 		memory,
 	)
