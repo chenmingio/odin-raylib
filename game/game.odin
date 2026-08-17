@@ -80,7 +80,7 @@ update_and_render: UpdateAndRenderProc : proc(
 		initialize_game(game_state, game_memory)
 	}
 
-	draw_rectangle(V2i{0, 0}, V2i{image_buffer.width, image_buffer.height}, GREEN, image_buffer)
+	draw_rectangle(V2i{0, 0}, V2i{image_buffer.width, image_buffer.height}, WATER, image_buffer)
 
 	player := update_player(game_state, input, dt)
 	shark := get_low_entity(game_state, game_state.shark)

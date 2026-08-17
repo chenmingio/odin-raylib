@@ -5,6 +5,7 @@ import "base:intrinsics"
 // RGBA
 RED := intrinsics.byte_swap(u32(0xFF0000FF))
 GREEN := intrinsics.byte_swap(u32(0x00FF00FF))
+WATER := intrinsics.byte_swap(u32(0x68AAA8FF))
 BLUE := intrinsics.byte_swap(u32(0x0000FFFF))
 CYAN := intrinsics.byte_swap(u32(0x00FFFFFF))
 YELLOW := intrinsics.byte_swap(u32(0xFFFF00FF))
