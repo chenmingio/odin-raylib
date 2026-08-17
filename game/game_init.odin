@@ -12,11 +12,7 @@ initialize_game :: proc(game_state: ^GameState, game_memory: ^Memory) {
 	world.chunk_dim_in_meters = CHUNK_DIM_IN_METERS
 	game_state.world = world
 
-	// 地形
-	add_tile_grass(world, game_memory, TileArea{V2i{0, 0}, V2i{3, 3}}, 0)
-	add_tile_grass(world, game_memory, TileArea{V2i{3, -3}, V2i{4, 5}}, 0)
-
-	add_stair_grass(game_state, game_memory, V2i{1, 1}, 0, .Right)
+	add_demo_terrain(game_state, game_memory)
 
 	// 初始化玩家
 	player := LowEntity {
