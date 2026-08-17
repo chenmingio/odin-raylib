@@ -80,7 +80,12 @@ render_sim_region :: proc(
 				V2i{32, 48},
 			)
 		case .Stair:
-			draw_tile(.Stairs_Side_Right, sim_entity.p.xy, state.tilemap1, image_buffer)
+			draw_tile(
+				stair_visual_for_direction(low_entity.stair_direction),
+				sim_entity.p,
+				state.tilemap1,
+				image_buffer,
+			)
 		case .Enemy:
 			draw_entity_animation(
 				entity_anchor_buffer_pos,

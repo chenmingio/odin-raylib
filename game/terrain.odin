@@ -11,6 +11,11 @@ TileArea :: struct {
 	size: V2i,
 }
 
+StairDirection :: enum u8 {
+	Left,
+	Right,
+}
+
 TileVisual :: enum u16 {
 	Empty,
 	Flat_Ground_Corner_Top_Left,
@@ -86,6 +91,11 @@ Tile :: struct {
 	frame_pos:  V2i,
 }
 
+TerrainTile :: struct {
+	visual: TileVisual,
+	level:  u8,
+}
+
 TileMapAsset :: struct {
 	image: ^image.Image,
 	tiles: [TileVisual]Tile,
@@ -151,6 +161,17 @@ tile_from_tilemap_asset :: proc(asset: TileMapAsset, visual: TileVisual) -> Tile
 	return tile
 }
 
+tile_level_to_z :: proc(level: u8) -> f32 {
+	return f32(level) * TILE_LEVEL_HEIGHT_IN_METERS
+}
+
+stair_visual_for_direction :: proc(direction: StairDirection) -> TileVisual {
+	if direction == .Left {
+		return .Stairs_Side_Left
+	}
+	return .Stairs_Side_Right
+}
+
 flat_ground_visual_for_tile :: proc(area: TileArea, tile_pos: V2i) -> TileVisual {
 	assert(area.size.x > 0 && area.size.y > 0)
 	max_pos := area.min + area.size - 1
@@ -197,19 +218,27 @@ flat_ground_visual_for_tile :: proc(area: TileArea, tile_pos: V2i) -> TileVisual
 
 add_tile_grass :: proc(world: ^World, memory: ^Memory, area: TileArea, level: u8) {
 	assert(area.size.x > 0 && area.size.y > 0)
-	_ = level // 高度尚未写入 tile_map。
 
 	for y in area.min.y ..< area.min.y + area.size.y {
 		for x in area.min.x ..< area.min.x + area.size.x {
 			chunk_x, local_x := tile_axis_to_chunk(x, CHUNK_TILE_DIM.x)
 			chunk_y, local_y := tile_axis_to_chunk(y, CHUNK_TILE_DIM.y)
 			chunk := get_world_chunk(world, V3i{chunk_x, chunk_y, 0}, memory)
-			chunk.tile_map[local_y][local_x] = flat_ground_visual_for_tile(area, V2i{x, y})
+			chunk.tile_map[local_y][local_x] = TerrainTile {
+				visual = flat_ground_visual_for_tile(area, V2i{x, y}),
+				level  = level,
+			}
 		}
 	}
 }
 
-add_stair_grass :: proc(state: ^GameState, memory: ^Memory, tile_pos: V2i) {
+add_stair_grass :: proc(
+	state: ^GameState,
+	memory: ^Memory,
+	tile_pos: V2i,
+	level: u8,
+	direction: StairDirection,
+) {
 	chunk_x, local_x := tile_axis_to_chunk(tile_pos.x, CHUNK_TILE_DIM.x)
 	chunk_y, local_y := tile_axis_to_chunk(tile_pos.y, CHUNK_TILE_DIM.y)
 
@@ -219,10 +248,15 @@ add_stair_grass :: proc(state: ^GameState, memory: ^Memory, tile_pos: V2i) {
 			pos = world_pos(
 				state.world,
 				V3i{chunk_x, chunk_y, 0},
-				V3{f32(local_x), f32(local_y), 0} * TILE_SIDE_IN_METERS,
+				V3 {
+					f32(local_x) * TILE_SIDE_IN_METERS,
+					f32(local_y) * TILE_SIDE_IN_METERS,
+					tile_level_to_z(level),
+				},
 			),
-			type = .Stair,
-			moveable = false,
+			type            = .Stair,
+			moveable        = false,
+			stair_direction = direction,
 		},
 		memory,
 	)

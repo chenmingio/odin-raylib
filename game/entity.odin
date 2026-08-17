@@ -71,6 +71,7 @@ LowEntity :: struct {
 	flight_time_remaining: i32, // ms
 	attack_cooldown:       f32, // 目前用anim_elapsed_time代替
 	collides:              bool, // false：纯装饰物：草、背景石头、特效、粒子。
+	stair_direction:       StairDirection,
 }
 
 SimEntity :: struct {

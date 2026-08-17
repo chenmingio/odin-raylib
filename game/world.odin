@@ -10,6 +10,7 @@ RENDER_HEIGHT_IN_PIXELS :: i32(720)
 PIXELS_PER_METER :: f32(64)
 
 TILE_SIDE_IN_METERS :: f32(1)
+TILE_LEVEL_HEIGHT_IN_METERS :: f32(1)
 
 // 1280x720 在 64 px/m 下约为 20x11.25m；Y 向上取整以覆盖完整屏幕。
 CAMERA_VIEW_SPAN_X_IN_METERS :: f32(20)
@@ -45,7 +46,7 @@ WorldChunk :: struct {
 	first_block:  ^WorldEntityBlock, // block是固定容量的储存容器，链表结构，动态创建，用freeList回收不用的
 	chunkXYZ:     V3i,
 	next_in_hash: ^WorldChunk, // chunk hash里同一个bucket里的下一个chunk
-	tile_map:     [CHUNK_TILE_DIM.y][CHUNK_TILE_DIM.x]TileVisual,
+	tile_map:     [CHUNK_TILE_DIM.y][CHUNK_TILE_DIM.x]TerrainTile,
 }
 
 World :: struct {
