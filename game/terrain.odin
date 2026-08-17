@@ -208,3 +208,22 @@ add_tile_grass :: proc(world: ^World, memory: ^Memory, area: TileArea, level: u8
 		}
 	}
 }
+
+add_stair_grass :: proc(state: ^GameState, memory: ^Memory, tile_pos: V2i) {
+	chunk_x, local_x := tile_axis_to_chunk(tile_pos.x, CHUNK_TILE_DIM.x)
+	chunk_y, local_y := tile_axis_to_chunk(tile_pos.y, CHUNK_TILE_DIM.y)
+
+	add_low_entity(
+		state,
+		LowEntity {
+			pos = world_pos(
+				state.world,
+				V3i{chunk_x, chunk_y, 0},
+				V3{f32(local_x), f32(local_y), 0} * TILE_SIDE_IN_METERS,
+			),
+			type = .Stair,
+			moveable = false,
+		},
+		memory,
+	)
+}

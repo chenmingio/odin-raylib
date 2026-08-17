@@ -1,5 +1,6 @@
 package game
 
+// pos是相对camera的坐标，需要在函数中转换为buffer坐标
 draw_tile :: proc(visual: TileVisual, pos: V2, tilemap: TileMapAsset, buffer: OffScreenBuffer) {
 	tile := tile_from_tilemap_asset(tilemap, visual)
 

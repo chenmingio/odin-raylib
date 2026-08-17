@@ -46,25 +46,26 @@ render_sim_region :: proc(
 	entities := sim_region.entities[:sim_region.entity_count]
 
 	for i in 0 ..< len(entities) {
-		entity := entities[i].low_entity
+		sim_entity := entities[i]
+		low_entity := sim_entity.low_entity
 
-		if entity.non_spatial {continue}
+		if low_entity.non_spatial {continue}
 
 		// 下面计算把worldPos（米）转换为buffer使用的坐标（pixel）
-		entity_anchor_buffer_pos := rel_pos_to_buffer_pos(entities[i].p, image_buffer)
+		entity_anchor_buffer_pos := rel_pos_to_buffer_pos(sim_entity.p, image_buffer)
 
 		// 玩家帧尺寸 or 一般实体尺寸（米→像素）
 		entity_size_px := V2i {
-			i32(meter_to_pixel(entity.size.x)),
-			i32(meter_to_pixel(entity.size.y)),
+			i32(meter_to_pixel(low_entity.size.x)),
+			i32(meter_to_pixel(low_entity.size.y)),
 		}
 
-		switch entity.type {
+		#partial switch low_entity.type {
 		case .Player:
 			draw_entity_animation(
 				entity_anchor_buffer_pos,
 				state.unit_animate,
-				entity,
+				low_entity,
 				image_buffer,
 				dt,
 			)
@@ -72,28 +73,35 @@ render_sim_region :: proc(
 				entity_anchor_buffer_pos,
 				entity_size_px,
 				image_buffer,
-				entity.hit_point_total,
-				entity.hit_point_left,
+				low_entity.hit_point_total,
+				low_entity.hit_point_left,
 			)
 		case .Wall:
 			draw_entity_image(
 				entity_anchor_buffer_pos,
 				state^.rock_images[0],
-				entity,
+				low_entity,
 				image_buffer,
 				V2i{32, 48},
 			)
-		case .Tree, .Tile:
+		case .Stair:
+			draw_tile(.Stairs_Side_Right, sim_entity.p.xy, state.tilemap1, image_buffer)
 		case .Enemy:
 			draw_entity_animation(
 				entity_anchor_buffer_pos,
 				state.harpoon_shark_animation,
-				entity,
+				low_entity,
 				image_buffer,
 				dt,
 			)
 		case .Weapon:
-			draw_sprite(entity_anchor_buffer_pos, state.harpoon_sprite, entity, image_buffer, dt)
+			draw_sprite(
+				entity_anchor_buffer_pos,
+				state.harpoon_sprite,
+				low_entity,
+				image_buffer,
+				dt,
+			)
 		case .Null:
 			break
 		}

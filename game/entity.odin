@@ -7,7 +7,7 @@ EntityType :: enum {
 	Tree,
 	Wall,
 	Weapon,
-	Tile,
+	Stair,
 }
 
 EntityStatus :: enum {
