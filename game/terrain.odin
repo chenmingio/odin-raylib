@@ -212,7 +212,11 @@ flat_ground_visual_for_tile :: proc(area: TileArea, tile_pos: V2i) -> TileVisual
 	return .Flat_Ground_Center
 }
 
-elevated_ground_visual_for_tile :: proc(area: TileArea, tile_pos: V2i) -> TileVisual {
+tile_level_y_offset :: proc(level: u8) -> i32 {
+	return i32(level)
+}
+
+elevated_ground_surface_visual_for_tile :: proc(area: TileArea, tile_pos: V2i) -> TileVisual {
 	assert(area.size.x > 0 && area.size.y > 0)
 	max_pos := area.min + area.size - 1
 	assert(
@@ -225,32 +229,19 @@ elevated_ground_visual_for_tile :: proc(area: TileArea, tile_pos: V2i) -> TileVi
 	is_left := tile_pos.x == area.min.x
 	is_right := tile_pos.x == max_pos.x
 	is_bottom := tile_pos.y == area.min.y
-	is_cliff_top := tile_pos.y == area.min.y + 1
 	is_top := tile_pos.y == max_pos.y
 
 	if area.size.x == 1 {
-		if area.size.y == 1 {return .Elevated_Ground_Isolated_Cliff}
+		if area.size.y == 1 {return .Elevated_Ground_Isolated}
 		if is_top {return .Elevated_Ground_Narrow_Vertical_Top}
-		if is_bottom {return .Elevated_Ground_Narrow_Vertical_Cliff_Face}
-		if is_cliff_top {return .Elevated_Ground_Narrow_Vertical_Cliff_Top}
+		if is_bottom {return .Elevated_Ground_Narrow_Vertical_Cliff_Top}
 		return .Elevated_Ground_Narrow_Vertical_Middle
 	}
 
 	if area.size.y == 1 {
-		if is_left {return .Elevated_Ground_Narrow_Horizontal_Cliff_Left}
-		if is_right {return .Elevated_Ground_Narrow_Horizontal_Cliff_Right}
-		return .Elevated_Ground_Narrow_Horizontal_Cliff_Middle
-	}
-
-	if area.size.y == 2 {
-		if is_top {
-			if is_left {return .Elevated_Ground_Narrow_Horizontal_Left}
-			if is_right {return .Elevated_Ground_Narrow_Horizontal_Right}
-			return .Elevated_Ground_Narrow_Horizontal_Middle
-		}
-		if is_left {return .Elevated_Ground_Narrow_Horizontal_Cliff_Left}
-		if is_right {return .Elevated_Ground_Narrow_Horizontal_Cliff_Right}
-		return .Elevated_Ground_Narrow_Horizontal_Cliff_Middle
+		if is_left {return .Elevated_Ground_Narrow_Horizontal_Left}
+		if is_right {return .Elevated_Ground_Narrow_Horizontal_Right}
+		return .Elevated_Ground_Narrow_Horizontal_Middle
 	}
 
 	if is_top {
@@ -259,11 +250,6 @@ elevated_ground_visual_for_tile :: proc(area: TileArea, tile_pos: V2i) -> TileVi
 		return .Elevated_Ground_Edge_Top
 	}
 	if is_bottom {
-		if is_left {return .Elevated_Ground_Cliff_Face_Left}
-		if is_right {return .Elevated_Ground_Cliff_Face_Right}
-		return .Elevated_Ground_Cliff_Face
-	}
-	if is_cliff_top {
 		if is_left {return .Elevated_Ground_Cliff_Top_Left}
 		if is_right {return .Elevated_Ground_Cliff_Top_Right}
 		return .Elevated_Ground_Cliff_Top
@@ -273,14 +259,36 @@ elevated_ground_visual_for_tile :: proc(area: TileArea, tile_pos: V2i) -> TileVi
 	return .Elevated_Ground_Center
 }
 
-grass_visual_for_tile :: proc(area: TileArea, tile_pos: V2i, level: u8) -> TileVisual {
+elevated_ground_cliff_face_visual_for_x :: proc(area: TileArea, x: i32) -> TileVisual {
+	assert(area.size.x > 0 && area.size.y > 0)
+	max_x := area.min.x + area.size.x - 1
+	assert(x >= area.min.x && x <= max_x)
+
+	is_left := x == area.min.x
+	is_right := x == max_x
+
+	if area.size.x == 1 {
+		if area.size.y == 1 {return .Elevated_Ground_Isolated_Cliff}
+		return .Elevated_Ground_Narrow_Vertical_Cliff_Face
+	}
+	if area.size.y == 1 {
+		if is_left {return .Elevated_Ground_Narrow_Horizontal_Cliff_Left}
+		if is_right {return .Elevated_Ground_Narrow_Horizontal_Cliff_Right}
+		return .Elevated_Ground_Narrow_Horizontal_Cliff_Middle
+	}
+	if is_left {return .Elevated_Ground_Cliff_Face_Left}
+	if is_right {return .Elevated_Ground_Cliff_Face_Right}
+	return .Elevated_Ground_Cliff_Face
+}
+
+grass_surface_visual_for_tile :: proc(area: TileArea, tile_pos: V2i, level: u8) -> TileVisual {
 	if level == 0 {
 		return flat_ground_visual_for_tile(area, tile_pos)
 	}
-	return elevated_ground_visual_for_tile(area, tile_pos)
+	return elevated_ground_surface_visual_for_tile(area, tile_pos)
 }
 
-set_terrain_tile :: proc(
+write_terrain_tile :: proc(
 	world: ^World,
 	memory: ^Memory,
 	tile_pos: V2i,
@@ -294,21 +302,48 @@ set_terrain_tile :: proc(
 
 add_tile_grass :: proc(world: ^World, memory: ^Memory, area: TileArea, level: u8) {
 	assert(area.size.x > 0 && area.size.y > 0)
+	y_offset := tile_level_y_offset(level)
 
 	for y in area.min.y ..< area.min.y + area.size.y {
 		for x in area.min.x ..< area.min.x + area.size.x {
-			tile_pos := V2i{x, y}
-			set_terrain_tile(
+			logical_pos := V2i{x, y}
+			surface_pos := V2i{x, y + y_offset}
+			write_terrain_tile(
 				world,
 				memory,
-				tile_pos,
+				surface_pos,
 				TerrainTile {
-					visual = grass_visual_for_tile(area, tile_pos, level),
+					visual = grass_surface_visual_for_tile(area, logical_pos, level),
 					level  = level,
 				},
 			)
 		}
 	}
+
+	if level > 0 {
+		for face_y in area.min.y ..< area.min.y + y_offset {
+			for x in area.min.x ..< area.min.x + area.size.x {
+				write_terrain_tile(
+					world,
+					memory,
+					V2i{x, face_y},
+					TerrainTile {
+						visual = elevated_ground_cliff_face_visual_for_x(area, x),
+						level  = level,
+					},
+				)
+			}
+		}
+	}
+}
+
+set_terrain_tile :: proc(
+	world: ^World,
+	memory: ^Memory,
+	tile_pos: V2i,
+	level: u8,
+) {
+	add_tile_grass(world, memory, TileArea{tile_pos, V2i{1, 1}}, level)
 }
 
 add_stair_grass :: proc(
