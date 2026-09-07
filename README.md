@@ -23,6 +23,10 @@ main.odin          # 平台层入口，管理窗口、输入、音频、内存�
 - **平台层** (`main.odin` + `platform/`)：静态链接，处理窗口、输入、音频、内存分配
 - **游戏层** (`game/`)：编译为 `.dylib`，运行时动态加载，支持热重载
 
+## 设计文档
+
+架构说明、专题教程及待补内容见 [docs/guides](docs/guides/README.md)。
+
 ## 构建
 
 ```bash

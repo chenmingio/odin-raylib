@@ -406,6 +406,10 @@ persistent memory layout
 
 ## 执行 checklist
 
+> 下面的勾选表示正文已经按完成标准写完，而不只是文件存在。2026-09-07 已创建
+> `docs/guides/README.md`、通用写作模板，以及总体架构、Terrain、渲染、Actor、
+> Collision Rule、Platform Input 的待填写框架；这些项目在正文完成前仍保持未勾选。
+
 ### P0：先建立可信主线
 
 - [ ] 新增 `docs/guides/README.md`
