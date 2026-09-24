@@ -1,5 +1,7 @@
 # Handmade Hero Day 070–080 学习与移植计划
 
+更新日期：2026-09-24。本文是后续实施计划；状态来自静态代码核对，尚未进行游戏运行验收。
+
 ## 目标
 
 这一阶段的主线不是“给 2D 游戏加一个楼梯对象”，而是逐步回答下面的问题：
@@ -12,43 +14,55 @@
 - 实体具有真实高度；位于不同高度的实体不会错误地互相阻挡。
 - 楼梯根据实体在楼梯上的位置连续给出地面高度。
 - 实体可以拥有多个局部碰撞体。
-- “地面”是显式的可行走空间，而不是写死的 `z = 0` 平面。
+- 用显式 room/Space 描述允许移动的区域；高度支撑与区域边界分别处理。
 - 移动循环同时处理“撞进实体”和“走出可行走区域”两种边界。
 
-课程索引：[Handmade Hero Episode Guide](https://guide.handmadehero.org/)。源代码基准使用：
+课程索引：[Handmade Hero Episode Guide](https://guide.handmadehero.org/)。最终代码基准使用用户提供的独立快照：
 
 ```text
-/Users/chenming/Documents/code.chenming.com/Games/handmade-hero-tutorial/
-  casey-origin-code/handmade_hero_legacy_source/
+/Users/chenming/Documents/code.chenming.com/Games/handmade-hero-tutorial/casey-origin-code/handmade_hero_day_080_source/code/
 ```
 
-用户给出的独立 `handmade_hero_day_080_source` 与 legacy 中的 Day 080 快照一致，可以使用任意一份作为最终对照。
+重点对照 `handmade_sim_region.cpp` 的 `MoveEntity`、`EntitiesOverlap`、`SpeculativeCollide`，`handmade_sim_region.h` 的碰撞体结构，`handmade_entity.h` 的 ground point，以及 `handmade.cpp` 的实体/房间构造。
+
+**范围约定**：下文的“完成标准”是本项目移植后的验收目标，不表示 Casey 在每集结尾都已经解决了全部边界问题。Day 080 仍保留 `Ground = 0.0f` 默认值、楼梯进出 TODO，以及主要基于 XY sweep + Z 区间筛选的运动；它不是完整三维刚体、任意楼板落地或悬崖坠落系统。
 
 ## 当前 Odin 项目的起点
 
-### 已经具备
+| 当前代码证据 | 状态 | 本阶段剩余工作 |
+|---|---|---|
+| `world.odin`：`WorldPosition`、逐轴 canonicalization；`entity.odin`：位置、速度、加速度、size 均为 V3 | 已有三维数据基础 | 让 Z 真正参与高度支撑和碰撞判定 |
+| `sim_region.odin`：遍历 XYZ chunk，以 `overlap_box(camera_bounds, entity_size_box(...))` 判定 updatable | 已有体积相交判断 | 审计查询边界、最大半径/速度假设；切换复合体后使用 total volume |
+| `collision.odin`：自碰撞排除、双方 collides 检查；`collision_rules.odin`：pairwise rules | Day 69–70 基础已有 | 回归 owner 排除、单次伤害、回收后规则清理 |
+| `sim_region.odin`：单独积分 Z，sweep 只传 `remaining_delta.xy` | 高度运动未完成 | 重力、支撑、Z 区间筛选、楼梯求高 |
+| `entity.odin` / `terrain.odin`：已有 `.Stair`、方向、level；`add_stair_grass` 已生成实体 | 楼梯数据占位 | 目前未设置楼梯 size/碰撞行为；补 walkable 范围和高度函数 |
+| `terrain_layout.odin`：已有主岛、高台和左右楼梯布局；tile 写入 Z chunk 0 | 已有视觉场景 | 将视觉 level 映射为物理高度、room 和楼梯连接，不能把图片上移当作上楼 |
+| `entity.odin`：已有 traversable bool，但没有 Space 类型和对应运动分支 | 字段占位 | Day 79–80 实际接入可通行区域 |
+| `SimEntity.low_entity: ^LowEntity`；`TODO.md` 的 Day 64 项 | 引用映射仍待完成 | 可先建立唯一 ID 映射；完整副本改造单独安排 |
 
-- `WorldPosition`、chunk 坐标和 offset 已经是 V3。
-- `LowEntity.dp`、`LowEntity.ddp` 和 `SimEntity.p` 已经是 V3。
-- `begin_sim` 已经遍历 Z chunk。
-- 成对碰撞规则、武器命中后禁用重复碰撞、规则回收已经存在。
-- 基础 swept AABB 和碰撞后滑动已经存在。
+另一个必须先统一的约定：`entity_size_box` 将 XY 视为中心、Z 视为底部；`high_entity_rect_center` 又给 Y 加半高。需要明确物理脚点、碰撞体 offset 和绘图 anchor 的关系，避免查询与碰撞使用不同的体积。
 
-### 仍需补齐
+## 完成以后可以玩到什么
 
-- `SimEntity` 仍通过 `^LowEntity` 直接修改存储实体；Day 64 的唯一映射和引用加载仍在 `TODO.md` 中。
-- `LowEntity.size` 仍是 V2，窄相碰撞只计算 XY。
-- Z 只被单独积分，没有重力、支撑状态、实体高度或地面求解。
-- `begin_sim` 的 updatable 判断仍把实体当作一个点，并且当前范围判断需要补完整的 min/max 测试。
-- 没有楼梯、ground point、复合碰撞体、traversable space。
+以下为需要随功能一起制作的验收场景，不是当前已实现的互动。
 
-因此 Day 071 不应整集重写；应当先审计已有 V3 工作，再补缺失的语义。
+| 阶段 | 功能点 | 玩家可亲自验证的新互动 |
+|---|---|---|
+| 71–72 | 重力、Z 速度、三维范围查询 | 接入一个不冲突的跳跃动作后，原地跳起落下；靠近镜头/楼层边缘时碰撞物仍有效 |
+| 73–75 | 楼梯 overlap、斜面求高、step height、支撑 | 从低端走上高台，再从高端走下；高度不匹配的侧面不能直接穿上去 |
+| 76–77 | 实体高度、Z 筛选、统一脚点 | 在上下两层相同 XY 位置活动而不误撞；跳起后脚底高于低障碍时越过，落地后仍被它阻挡 |
+| 78 | 多个局部碰撞体 | 绕过 L 形障碍，穿过两个实体部件之间足够宽的缺口，不再被整体包围盒挡住 |
+| 79–80 | room/Space 与 traversable 边界 | 在主岛、高台及连接区内探索；走到无连接的区域边缘被挡住，合法房间连接处能连续通过 |
+
+推荐最终做一个 **“主岛 → 楼梯 → 高台 → 下楼返回”** 的小关卡，并放置低障碍、复合障碍和不同高度的战斗目标。旧武器伤害继续工作；在命中检查复用 Z 筛选后，用“同高度命中、不同高度不命中”验证高度对战斗的影响。这里不新增敌人寻路、跨层追击或新的攻击系统。
+
+**可选后续玩法，不计入 70–80 完成要求**：跳崖落到下层、掉坑重生、桥下穿行与任意楼板落地、开关门/机关事件、怪物自动上下楼。它们需要额外的支撑面选择、垂直碰撞、事件或寻路设计；仅加 traversable 不会自动获得这些能力。
 
 ## 开始 Day 071 前的前置检查点
 
 建议先完成或明确冻结下面三项，避免在楼梯逻辑中同时调试旧问题：
 
-1. 完成 `TODO.md` 中 Day 64 的 `storage_index -> SimEntity` 唯一映射，至少保证同一实体在一个 SimRegion 中只加载一次。
+1. 审计 `TODO.md` 中 Day 64 的引用问题，至少保证一个 storage index 在同一 SimRegion 内唯一。若当前不需要递归加载关联实体，可先验证现有加载不重复，完整引用解析另设 checkpoint，不把完整副本重构绑进楼梯工作。
 2. 为移动测试建立固定小场景：一个玩家、一个普通墙、一个低墙、上下两层房间、连接两层的楼梯。
 3. 给碰撞体、ground point、当前 ground 高度和 SimRegion 边界准备 debug drawing；这一阶段只看最终画面很难定位 Z 错误。
 
@@ -124,7 +138,7 @@
 - updatable bounds 额外包含最大实体半径。
 - 加载 bounds 额外包含 `max_radius + dt * max_velocity` 安全边界。
 - 为最大速度建立可验证的约束。
-- 实体尺寸从 V2 过渡为 V3。
+- 当前实体尺寸已经是 V3；核对构造时高度非零且与物理含义一致。
 
 **先自己尝试**
 
@@ -154,14 +168,14 @@
 
 **先自己尝试**
 
-- 先定义事件语义：enter、stay、exit 各在何时触发。
+- 先记录移动前后的重叠状态；enter/stay/exit 日志可作为辅助实验，不要求建立通用事件系统。
 - 用一个不阻挡玩家的矩形触发区验证事件，不要先写楼梯高度插值。
 - 思考 overlap 状态应该跨帧保存，还是能从每帧几何关系重建。
 
 **完成标准**
 
 - 玩家可进入和离开触发区，不会被当成墙挡住。
-- 每次边界穿越只产生一次预期事件。
+- 能解释初始已重叠和本帧新接触为何需要不同处理。
 
 **注意**
 
@@ -187,7 +201,7 @@
 
 - 写纯函数 `stair_ground(stair, xy) -> z`，单独测试底端、中点、顶端和范围外钳制。
 - 让角色匀速横穿楼梯，不加跳跃，观察 Z 是否单调连续。
-- 明确同一位置重叠多块地面时 ground 的选择规则；本阶段可以先取最高有效支撑面。
+- 本阶段先只放一条楼梯，避免多个候选支撑歧义；不能直接取所有重叠地面的最高值，否则可能吸附到上层。多支撑面选择留作后续设计。
 
 **完成标准**
 
@@ -209,6 +223,8 @@
 - 引入 `z_supported` 状态；有支撑时不施加重力，失去支撑时恢复重力。
 - 楼梯本身重新参与候选边界检测，但最终是否阻挡由台阶高度决定。
 
+**源码差异提醒**：Day 080 的 `SpeculativeCollide` 仍使用当前 ground point；调用方虽然计算 `TestP`，却没有传入。候选位置判定是本项目的稳健性改进，不能直接照抄后宣称已完成。源码也明确保留了离开楼梯的 TODO。
+
 **先自己尝试**
 
 - 分别写“从低端进入”“从高端进入”“从侧边进入”“从楼梯走出到空中”四个场景。
@@ -219,7 +235,7 @@
 
 - 低端可正常上楼，高端高度匹配时可正常下楼。
 - 角色不能从楼梯侧面或错误楼层瞬移到斜面。
-- 离开支撑面会下落，不会悬空。
+- 主动跳起后受重力回落；任意悬崖离地与落向下层不作为本集保证。
 
 ### Day 076 — Entity Heights and Collision Detection
 
@@ -309,7 +325,7 @@
 
 **主要问题**
 
-全局 `ground = 0` 无法表示多层房间、洞、悬崖和同一 SimRegion 内的多个可行走高度。必须把“哪里允许站立”变成世界数据。
+需要把“哪里允许移动”变成世界数据，用房间体积限制活动范围。本集引入 Space 数据；真正限制离开区域要到 Day 080，默认 ground 高度仍是独立问题。
 
 **新增特性**
 
@@ -321,7 +337,7 @@
 
 **先自己尝试**
 
-- 把地图中一间房的地面删掉，确认“无地面”能被表示，而不是仍落到 `z = 0`。
+- 暂时移除一个房间的 Space，观察调试轮廓消失；到 Day 080 再验证活动范围约束。不要以自动掉落作为本集验收。
 - 写清楚 solid volume 与 traversable volume 的集合含义：前者不能进入，后者不能随意离开。
 - 允许多个 traversable 重叠，为楼梯与上下层房间交界做准备。
 
@@ -329,7 +345,7 @@
 
 - 每间房都有显式可视化的可行走范围。
 - traversable space 不会像墙一样阻止内部移动。
-- 没有 Space 的区域不再被默认视作无限地面。
+- 房间范围已成为可查询的数据；离开范围的运动限制留给下一集。
 
 ### Day 080 — Handling Traversables in the Collision Loop
 
@@ -344,8 +360,8 @@
 - `entities_overlap` 支持复合碰撞体与小 epsilon。
 - traversable 也进入 sweep 候选循环。
 - 对 solid 求最早“进入”时间 `t_min`。
-- 对当前所在 traversable 求最早“离开”时间 `t_max`。
-- 选择沿本次位移最先遇到的有效停止边界。
+- 对当前重叠的 traversable 候选求退出边界，并取最大的有效退出参数 `t_max`，保留重叠区域提供的继续移动空间；不能取各区域退出时间的最小值。
+- 最终取 `t_stop = min(t_min, t_max)`，保留对应边界和法线以处理滑动。
 - overlap/ground 处理复用统一的 multi-volume 几何测试。
 
 **先自己尝试**
@@ -353,6 +369,8 @@
 - 把问题画成一条参数化线段：`p(t) = p0 + t * delta`，分别标出进入 solid 和离开 traversable 的 t。
 - 建立四个场景：房间内部移动、撞墙、走向没有地面的门口、从房间进入重叠的楼梯/下一房间。
 - epsilon 只用于几何稳健性，并集中定义；不要用它掩盖错误的 ground 或 offset。
+
+**源码边界**：该算法依赖当前重叠候选和有限次移动迭代，不是任意区域并集的完整连续求交。需额外验证高速跨越多个房间、初始不在任何 Space（源码 `tMax` 初始为 0）和零 XY 位移。楼梯负责高度，Space 负责允许移动的范围，两者需共同覆盖连接处。
 
 **完成标准**
 
@@ -365,7 +383,7 @@
 
 不要把 11 集压成一个大提交。建议按下面的风险边界执行：
 
-1. **Baseline**：完成 Day 64 唯一映射、固定测试场景和 debug drawing。
+1. **Baseline**：审计 Day 64 唯一加载、统一坐标基准，固定测试场景和 debug drawing。
 2. **Day 070**：碰撞规则审计与测试。
 3. **Day 071**：统一 V3 和重力。
 4. **Day 072**：SimRegion 体积查询和安全边界。
@@ -390,14 +408,29 @@ Day 080 完成后再考虑渲染美化。课程中的 `ZFudge` 是探索性显�
 7. 写三条笔记：自己的方案、Casey 的方案、为何保留其中一个。
 8. 检查 `git status --short` 和相关 diff，只提交本集文件。
 
-对比相邻快照的示例：
+当前确认可用的是独立 Day 080 快照。若另有相邻日期源码，再对比相应 `code/` 目录；没有相邻快照时，按各集 guide 时间索引理解演进，以 Day 080 验证最终数据和调用关系。
 
-```bash
-base=/Users/chenming/Documents/code.chenming.com/Games/handmade-hero-tutorial/casey-origin-code/handmade_hero_legacy_source
-diff -ru \
-  "$base/handmade_hero_day_079_source/code" \
-  "$base/handmade_hero_day_080_source/code"
-```
+## 本项目的落地清单
+
+所有勾选项表示待实现并验收；上文“已有”仅代表读代码确认的基础。
+
+| 完成 | 检查点 | 主要文件 | 可交付结果 |
+|---|---|---|---|
+| [ ] | 70 / 起点审计 | `game/collision.odin`、`game/sim_region.odin` | 统一脚点/中心定义；保存旧移动、武器命中的基线 |
+| [ ] | 71–72 / Z 运动 | `game/player.odin`、`game/sim_region.odin`、`game/controller.odin`、`platform/input.odin` | 跳跃输入、重力、XY 阻尼与 Z 分离、范围与速度约束 |
+| [ ] | 73–75 / 楼梯 | `game/entity.odin`、`game/terrain.odin`、`game/sim_region.odin`、`game/collision.odin` | 楼梯范围、求高、step height、支撑状态 |
+| [ ] | 76–77 / 高度与脚点 | `game/collision.odin`、`game/game_init.odin`、`game/render_entity.odin`、`game/render_debug.odin` | Z 区间筛选，物理脚点与 sprite anchor 分离，显示脚点/高度 |
+| [ ] | 78 / 复合体 | `game/entity.odin`、`game/game_init.odin`、`game/collision.odin`、`game/sim_region.odin` | 长期存储的 collision group、包围体及逐 volume 查询 |
+| [ ] | 79–80 / 活动范围 | `game/terrain_layout.odin`、`game/terrain.odin`、`game/sim_region.odin`、`game/collision.odin` | Space 构造、退出边界、重叠连接和滑动 |
+| [ ] | 小关卡验收 | `game/terrain_layout.odin`、`game/render_debug.odin` | 主岛往返高台、低障碍、复合缺口、跨高度命中对照 |
+
+实施注意：
+
+- `update_player` 当前的 `-player.dp * 5` 会作用到 Z；加跳跃时将地面阻尼限定到 XY，重力统一在运动求解中施加。
+- 当前左右楼梯来自 `StairDirection`，先确认贴图方向和真实上坡轴的对应关系；不要直接把 Casey 的 Y 方向插值用于全部楼梯。
+- tile 的视觉 level 与物理楼层共用明确的高度换算；地表图片负责显示，Space 和楼梯实体负责物理。
+- 保留现有 Odin/Raylib 软件渲染与素材方案；本阶段无需移植 Windows 平台层或 Day 81 以后的地面贴图缓存。
+- 每个 checkpoint 记录手动操作、预期结果和实际结果；几何纯函数适合做针对性的断言。修改代码后按 README 构建，文档更新本身不需要运行游戏测试。
 
 ## 最终回归清单
 
@@ -409,6 +442,6 @@ diff -ru \
 - 楼梯四种进入方向都有确定行为，非法侧向跨层会被阻止。
 - 高矮实体共享 ground point 语义。
 - 复合碰撞体的空隙不会产生假碰撞。
-- 无 traversable ground 的区域不可站立。
+- 不能从合法 Space 走入无连接区域；非法出生点有明确诊断。
 - room-room、room-stair、stair-room 三种过渡连续稳定。
-- fixed tick、录制回放和热重载仍可工作。
+- fixed tick、录制回放和热重载仍可工作。改变永久存储 struct 布局时，重启并重新录制，避免拿旧内存/旧回放误判新逻辑。
