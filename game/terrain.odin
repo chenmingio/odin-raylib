@@ -288,12 +288,7 @@ grass_surface_visual_for_tile :: proc(area: TileArea, tile_pos: V2i, level: u8) 
 	return elevated_ground_surface_visual_for_tile(area, tile_pos)
 }
 
-write_terrain_tile :: proc(
-	world: ^World,
-	memory: ^Memory,
-	tile_pos: V2i,
-	tile: TerrainTile,
-) {
+write_terrain_tile :: proc(world: ^World, memory: ^Memory, tile_pos: V2i, tile: TerrainTile) {
 	chunk_x, local_x := tile_axis_to_chunk(tile_pos.x, CHUNK_TILE_DIM.x)
 	chunk_y, local_y := tile_axis_to_chunk(tile_pos.y, CHUNK_TILE_DIM.y)
 	chunk := get_world_chunk(world, V3i{chunk_x, chunk_y, 0}, memory)
@@ -307,14 +302,13 @@ add_tile_grass :: proc(world: ^World, memory: ^Memory, area: TileArea, level: u8
 	for y in area.min.y ..< area.min.y + area.size.y {
 		for x in area.min.x ..< area.min.x + area.size.x {
 			logical_pos := V2i{x, y}
-			surface_pos := V2i{x, y + y_offset}
 			write_terrain_tile(
 				world,
 				memory,
-				surface_pos,
+				logical_pos,
 				TerrainTile {
 					visual = grass_surface_visual_for_tile(area, logical_pos, level),
-					level  = level,
+					level = level,
 				},
 			)
 		}
@@ -329,7 +323,7 @@ add_tile_grass :: proc(world: ^World, memory: ^Memory, area: TileArea, level: u8
 					V2i{x, face_y},
 					TerrainTile {
 						visual = elevated_ground_cliff_face_visual_for_x(area, x),
-						level  = level,
+						level = level,
 					},
 				)
 			}
@@ -337,12 +331,7 @@ add_tile_grass :: proc(world: ^World, memory: ^Memory, area: TileArea, level: u8
 	}
 }
 
-set_terrain_tile :: proc(
-	world: ^World,
-	memory: ^Memory,
-	tile_pos: V2i,
-	level: u8,
-) {
+set_terrain_tile :: proc(world: ^World, memory: ^Memory, tile_pos: V2i, level: u8) {
 	add_tile_grass(world, memory, TileArea{tile_pos, V2i{1, 1}}, level)
 }
 
@@ -362,16 +351,12 @@ add_stair_grass :: proc(
 			pos = world_pos(
 				state.world,
 				V3i{chunk_x, chunk_y, 0},
-				V3 {
-					f32(local_x) * TILE_SIDE_IN_METERS,
-					f32(local_y) * TILE_SIDE_IN_METERS,
-					0,
-				},
+				V3{f32(local_x) * TILE_SIDE_IN_METERS, f32(local_y) * TILE_SIDE_IN_METERS, 0},
 			),
-			type            = .Stair,
-			moveable        = false,
+			type = .Stair,
+			moveable = false,
 			stair_direction = direction,
-			stair_level     = level,
+			stair_level = level,
 		},
 		memory,
 	)

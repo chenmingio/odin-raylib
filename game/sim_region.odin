@@ -23,11 +23,13 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory, dt: f32) -> SimRegion {
 	// 位于camera边缘的entity以最快速度达到的边缘
 	margin_radius := result.max_entity_radius * 2 + result.max_entity_velocity * dt
 
-	camera_bound_rel := V3 {
-		CAMERA_VIEW_SPAN_X_IN_METERS,
-		CAMERA_VIEW_SPAN_Y_IN_METERS,
-		CAMERA_VIEW_SPAN_Z_IN_METERS,
-	} / 2
+	camera_bound_rel :=
+		V3 {
+			CAMERA_VIEW_SPAN_X_IN_METERS,
+			CAMERA_VIEW_SPAN_Y_IN_METERS,
+			CAMERA_VIEW_SPAN_Z_IN_METERS,
+		} /
+		2
 
 	camera_bounds_min := world_pos_minus(state.world, state.camera_p, camera_bound_rel)
 	camera_bounds_max := world_pos_add(state.world, state.camera_p, camera_bound_rel)
@@ -101,12 +103,12 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 
 			// 如果没有碰撞，运行的距离
 			// delta = v0 * dt + 0.5 * a * dt * dt
-			dp_remaining := e_a.low_entity.dp * dt + 0.5 * e_a.low_entity.ddp * dt * dt
+			remaining_delta := e_a.low_entity.dp * dt + 0.5 * e_a.low_entity.ddp * dt * dt
 			e_a.low_entity.dp = e_a.low_entity.dp + e_a.low_entity.ddp * dt
 
 			// z 方向单独处理，不参与碰撞
-			e_a.p.z += dp_remaining.z
-			dp_remaining.z = 0
+			e_a.p.z += remaining_delta.z
+			remaining_delta.z = 0
 
 			for n in 0 ..< 4 {
 
@@ -117,7 +119,7 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 				for &e_b in entities {
 					// check-point-1: 有些不碰撞，比如玩家和他的武器
 					if can_collide(&e_a, &e_b, game_state) {
-						hit_result := collide_minkowski_swept_AABB(&e_a, &e_b, dp_remaining.xy)
+						hit_result := collide_minkowski_swept_AABB(&e_a, &e_b, remaining_delta.xy)
 						if hit_result.hit &&
 						   (hit_result.sweep_fraction < nearest_hit.sweep_fraction) {
 							hit_result.other = &e_b
@@ -132,7 +134,7 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 						&sim_region.debug_collision,
 						&e_a,
 						nearest_hit.other,
-						dp_remaining.xy,
+						remaining_delta.xy,
 						nearest_hit,
 					)
 					// check-point-2: 碰撞以后有些特殊逻辑。
@@ -145,16 +147,16 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 						game_memory,
 					)
 					if stop_on_collison {
-						dp := dp_remaining * nearest_hit.sweep_fraction
-						e_a.p += dp
+						entity_delta := remaining_delta * nearest_hit.sweep_fraction
+						e_a.p += entity_delta
 
 						dp_remaining_xy :=
 							linalg.dot(
-								dp_remaining.xy * (1 - nearest_hit.sweep_fraction),
+								remaining_delta.xy * (1 - nearest_hit.sweep_fraction),
 								nearest_hit.surface.xy,
 							) *
 							nearest_hit.surface.xy
-						dp_remaining.xy = dp_remaining_xy
+						remaining_delta.xy = dp_remaining_xy
 
 						e_a.low_entity.dp.xy = linalg.dot(
 							e_a.low_entity.dp.xy,
@@ -162,13 +164,13 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 						)
 					} else {
 						// 没有碰撞
-						dp := dp_remaining
+						dp := remaining_delta
 						e_a.p += dp
 						break
 					}
 				} else {
 					// 没有碰撞
-					dp := dp_remaining
+					dp := remaining_delta
 					e_a.p += dp
 					break
 				}

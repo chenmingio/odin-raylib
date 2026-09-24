@@ -114,12 +114,12 @@ collide_minkowski_swept_AABB :: proc(
 		surface := side.dirction
 		// y=Cy 水平线 y固定，检查x
 		if (side.dirction == V2{1, 0}) {
-			if math.abs(ray.y) < SIM_EPS {continue} // 射线和wall都是水平线，不相交
+			if math.abs(ray.y) < SIM_EPS {continue} 	// 射线和wall都是水平线，不相交
 			sweep_fraction = side.axis_pos / ray.y //投影到y轴，y=Cy时碰撞
 			the_other_axis_value = ray.x * sweep_fraction // x的
 		} else {
 			// x = Cx 垂线 x固定，检查y
-			if math.abs(ray.x) < SIM_EPS {continue} // 射线和wall都是垂线，不相交
+			if math.abs(ray.x) < SIM_EPS {continue} 	// 射线和wall都是垂线，不相交
 			sweep_fraction = side.axis_pos / ray.x //投影到x轴，x=Cx时碰撞
 			the_other_axis_value = ray.y * sweep_fraction
 		}
@@ -130,7 +130,7 @@ collide_minkowski_swept_AABB :: proc(
 		   sweep_fraction <= 1 &&
 		   the_other_axis_value >= side.wall_scope.x &&
 		   the_other_axis_value <= side.wall_scope.y &&
-		   sweep_fraction < nearest_hit.sweep_fraction { //运动轨迹与x/y线相交叉的位置在边的范围里
+		   sweep_fraction < nearest_hit.sweep_fraction { 	//运动轨迹与x/y线相交叉的位置在边的范围里
 
 			nearest_hit.hit = true
 			nearest_hit.sweep_fraction = math.max(sweep_fraction - 0.001, 0)

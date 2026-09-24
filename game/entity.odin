@@ -58,12 +58,13 @@ LowEntity :: struct {
 	anim_elapsed_time:     i32, // ms,当前frame花了多少时间，在切换frame以后清零
 	direction:             Direction,
 	// 碰撞相关
-	moveable:              bool, //是否移动，比如墙就不能移动
-	non_spatial:           bool, //是否在simRegion里参与模拟
-	dp:                    V3, // derivative of p
-	ddp:                   V3, // derivative of dp
+	moveable:              bool, //是否移动，比如墙就不能移动，不参与主动碰撞
+	non_spatial:           bool, //是否在simRegion里参与模拟。比如non_spatial的武器不需要模拟和render
+	dp:                    V3, // derivative of p，速度
+	ddp:                   V3, // derivative of dp，加速度
 	hit_point_total:       i32,
 	hit_point_left:        i32,
+	traversable:           bool, //？
 	// 游戏逻辑相关
 	owner:                 u32,
 	weapon:                u32,

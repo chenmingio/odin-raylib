@@ -1,6 +1,5 @@
 为什么需要sim region
 - 有限的资源，不可能模拟所有的运动
-- 
 
 ### 为什么需要区分low_entity和high_entity?
 - 信息差异

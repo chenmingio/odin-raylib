@@ -10,7 +10,9 @@
 
 ## 要解决的问题
 
-<!-- TODO: 为什么 gameplay state update 不应散落在 render/collision 中？当前代码是怎样划分的？ -->
+1. 状态的切换逻辑：人物在Walk或者Idle时，如果突然Attack，需要优先进入Attack状态同时开始播放动画。反过来，Attack需要结束以后才能进入Idle或者Walk。
+2. 每个状态内部需要知道自己的节律（什么时候结束，从开始到当前位置的节拍）
+3. 特殊状态（比如投掷）的特殊逻辑（比如什么时候创建鱼叉）
 
 ## Actor、Entity 与 SimEntity 的关系
 
@@ -23,20 +25,7 @@
 | owner / weapon | TODO | TODO | TODO | relationship |
 | flight time / target | — | — | TODO | projectile |
 
-## 每帧调用顺序
 
-```text
-Input
-  -> update_player
-  -> update_shark_state
-  -> camera follows player
-  -> begin_sim
-  -> simulate movement/collision
-  -> render
-  -> end_sim
-```
-
-<!-- TODO: 核对顺序，说明各阶段读到的是模拟前还是模拟后的状态。 -->
 
 ## Player 状态机
 
@@ -79,38 +68,25 @@ Idle
 
 ## Harpoon 生命周期
 
+为什么用non-spatial控制？每次创建新的harpoon还是用non-spatial=false来让他隐形？
+每次新建需要销毁和回收entity，可能对性能的开销远大于用一个flag来控制
+
 ```text
 stored non-spatial entity
   -> make spatial at release
   -> ballistic movement
   -> collision event/rules
-  -> flight time expires
+  -> flight time expires 用时间控制射程：不论目标远近，投射的用时不变，倒算出手速度。
   -> become non-spatial
   -> clear collision rules
 ```
 
-<!-- TODO: 每个箭头对应哪个函数，哪些字段需要 reset。 -->
-
-### 为什么复用同一个 Entity
-
-<!-- TODO: 相比每次 create/destroy projectile 的收益和状态清理风险。 -->
-
 ### Owner 与 Weapon 引用
-
-<!-- TODO: storage index 的优势、index reuse 风险、未来 SimEntity reference mapping。 -->
-
-## Gameplay 与 Collision 的职责边界
-
-| 决策 | 当前负责模块 | 备选位置 | 取舍 |
-|---|---|---|---|
-| 是否发生几何碰撞 | TODO | TODO | TODO |
-| 是否阻挡移动 | TODO | TODO | TODO |
-| 是否扣血 | TODO | TODO | TODO |
-| 是否允许再次命中 | TODO | TODO | TODO |
 
 ## 时间与确定性
 
 <!-- TODO: fixed dt、毫秒整数、f32 timer、animation time 和 replay。 -->
+fixed_dt: 固定frame时间，方便消费函数的计算
 
 ## 关键不变量
 
@@ -126,27 +102,3 @@ stored non-spatial entity
 - **Alternative**：独立 Actor component/state machine。
 - **Alternative**：event queue 分离 collision geometry 与 gameplay damage。
 - **Alternative**：projectile pool 而不是每个 owner 固定一个 weapon entity。
-
-## 如何验证
-
-| 场景 | 验证方式 | 当前状态 |
-|---|---|---|
-| 按键优先级 | table test | TODO |
-| 一帧跨过 attack threshold | scenario test | TODO |
-| Harpoon 完整生命周期 | replay + state assertions | TODO |
-| 同一 projectile 不重复伤害 | collision-rule test | TODO |
-
-## 代码入口
-
-- `game/player.odin` — Player 输入、运动意图和动画状态
-- `game/shark.odin` — Shark/Harpoon 状态更新
-- `game/game_init.odin` — Actor 和关系初始化
-- `game/game.odin` — Actor 更新在一帧中的位置
-
-## 相关文档
-
-- [Entity](entity.md)
-- [SimRegion](sim_region.md)
-- [碰撞系统](collision.md)
-- [碰撞规则](collision_rules.md)
-- [图片与动画](draw_image_animation.md)
