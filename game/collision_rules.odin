@@ -68,16 +68,15 @@ add_collision_rule :: proc(
 
 clear_collision_rules_for :: proc(ety: u32, state: ^GameState) {
 	for hash in 0 ..< len(state.collision_rule_hash) {
-		// 不常见的技巧
-		// link指向hash的bucket的地址本身，而不是bucket地址内的rule地址。
-		// link语义上我们把他指向“储存rule的容器”本身，而不是“rule”。
-		// 这样可以解决prev的问题（link相当于prev的next，让你可以修改prev的next）
-		// link^就是“容器内储存的rule”
+		// link 指向“存放 rule 指针的槽位”，类型为 ^^PairwiseCollisionRule。
+		// 初始指向 hash 数组元素，遍历时可指向前一个节点的 next 字段。
+		// link^ 是槽位中保存的 rule 指针，link^^ 才是 rule 对象。
+		// 修改 link^ 就能修改指向当前节点的指针，统一处理删除头节点和中间节点。
 		link := &state.collision_rule_hash[hash]
 		for link^ != nil {
 			rule := link^
 			if rule.entity_a == ety || rule.entity_b == ety {
-				// 把容器内存上“link里当前rule的下一个rule的地址”
+				// 将槽位中的指针改为当前 rule 的 next，跳过当前节点。
 				link^ = rule^.next
 				// 清空内容
 				rule^ = PairwiseCollisionRule{}
@@ -87,6 +86,7 @@ clear_collision_rules_for :: proc(ety: u32, state: ^GameState) {
 				state.first_free_collision_rule = rule
 				rule.next = first_free
 			} else {
+				// 当前节点保留，下一轮通过它的 next 槽位访问下一个节点。
 				link = &link^.next
 			}
 		}
