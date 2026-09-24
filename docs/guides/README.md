@@ -66,6 +66,7 @@
 
 | 主题 | 文档 | 状态 | 主要代码 |
 |---|---|---|---|
+| Day 080–095 学习路线 | [学习与移植计划](handmade_hero_day_080_095_plan.md) | 计划 | 地面缓存、render group、纹理采样与颜色混合 |
 | 从世界到 framebuffer | [渲染流水线](rendering_pipeline.md) | 框架 | `game/render*.odin`、`main.odin` |
 | Atlas、trim、anchor 与动画 | [图片与动画](draw_image_animation.md) | 专题 | `game/animation.odin`、`game/render_bitmap.odin`、`game/render_entity.odin` |
 
