@@ -135,22 +135,26 @@ animation_from_assets :: proc(
 	return result
 }
 
-update_animate_frame_index :: proc(entity: ^LowEntity, animation: Animation) {
+// 根据时间找到对应帧
+update_animate_frame_index :: proc(entity: ^LowEntity, animation: Animation) -> bool {
 	clip := animation.clips[entity.status]
 	clip_frames := clip.frames
 	assert(len(clip_frames) > 0)
 
-	elapsed_time :=
-		(entity.status == EntityStatus.Throw) ? entity.anim_elapsed_time : entity.anim_elapsed_time % clip.total_duration
+	elapsed_time := entity.anim_elapsed_time % clip.total_duration
 
 	acc: i32 = 0
 	for idx in 0 ..< len(clip_frames) {
 		frame := clip_frames[idx]
-		if acc + frame.duration > elapsed_time {
+		if acc + frame.duration > elapsed_time { 	// 步进到“最近”一帧
 			entity.anim_frame_idx = i32(idx)
+			if idx == len(clip_frames) - 1 {
+				return true
+			}
 			break
 		} else {
 			acc += frame.duration
 		}
 	}
+	return false
 }

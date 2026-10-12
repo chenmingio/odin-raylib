@@ -18,6 +18,7 @@ EntityStatus :: enum {
 	Attack_2,
 	Guard,
 	Throw,
+	Jump,
 }
 
 Direction :: enum {
@@ -33,6 +34,7 @@ status_names := [EntityStatus]string {
 	.Attack_2 = "Attack 2",
 	.Guard    = "Guard",
 	.Throw    = "Throw",
+	.Jump     = "Jump",
 }
 
 entity_status_to_name :: proc(s: EntityStatus) -> string {
@@ -55,7 +57,7 @@ LowEntity :: struct {
 	// render相关
 	status:                EntityStatus,
 	anim_frame_idx:        i32,
-	anim_elapsed_time:     i32, // ms,当前frame花了多少时间，在切换frame以后清零
+	anim_elapsed_time:     i32, // ms,当前status/clip花了多少时间，在切换status/clip以后清零
 	direction:             Direction,
 	// 碰撞相关
 	moveable:              bool, //是否移动，比如墙就不能移动，不参与主动碰撞

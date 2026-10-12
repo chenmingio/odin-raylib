@@ -122,8 +122,8 @@ main :: proc() {
 
 		// input
 
-		// 录制回放控制 (使用 L 键，匹配 C 版本逻辑)
-		if rl.IsKeyPressed(rl.KeyboardKey.L) {
+		// 录制回放控制
+		if rl.IsKeyPressed(rl.KeyboardKey.R) {
 			if record_state.is_recording {
 				// 正在录制 → 停止录制并开始回放
 				platform.stop_recording(&record_state)
