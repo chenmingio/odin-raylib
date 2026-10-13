@@ -148,6 +148,7 @@ update_animate_frame_index :: proc(entity: ^LowEntity, animation: Animation) -> 
 		frame := clip_frames[idx]
 		if acc + frame.duration > elapsed_time { 	// 步进到“最近”一帧
 			entity.anim_frame_idx = i32(idx)
+			assert(idx < len(clip_frames))
 			if idx == len(clip_frames) - 1 {
 				return true
 			}

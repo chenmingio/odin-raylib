@@ -6,14 +6,18 @@ next_player_status :: proc(
 	current_status: EntityStatus,
 	animate_done: bool,
 	is_moving: bool,
+	z_supported: bool,
 	try_attack_1: bool,
 	try_attack_2: bool,
 	try_jump: bool,
-	// 以后可以继续加：is_guarding, is_dead, is_hit 等
 ) -> EntityStatus {
-	// 跳的时候不可以攻击。
-	// 按优先级从高到低排：
+	// 返回的status用于渲染图片，而不是用来修改状态（比如跳）
 
+	// 跳/攻击的时候不可以修改状态
+	// 跳
+	if !z_supported {
+		return .Jump
+	}
 	// attack有cd，没有done不能修改状态
 	if (current_status == .Attack_1 || current_status == .Attack_2) && !animate_done {
 		return current_status
@@ -59,11 +63,18 @@ update_player :: proc(state: ^GameState, input: Input, dt: f32) -> ^LowEntity {
 		player.direction = move.x > 0 ? Direction.Forward : Direction.Backward
 	}
 
-	player.ddp = linalg.normalize0(move) * player_rfd - player.dp * 5
+	// 摩擦力只作用于水平方向，垂直方向只要没有z-support就永远有g
+	player.ddp.xy = linalg.normalize0(move.xy) * player_rfd - player.dp.xy * 5
 
 	try_attack_1 := input.controllers[0].action_left.ended_down
 	try_attack_2 := input.controllers[0].action_up.ended_down
 	try_jump := input.controllers[0].action_down.ended_down
+
+	if try_jump && player.z_supported {
+		player.dp.z = 5
+		player.z_supported = false
+	}
+	player.ddp.z = player.z_supported ? 0 : -9.8
 
 	animate_done := update_animate_frame_index(player, state.unit_animate)
 
@@ -71,6 +82,7 @@ update_player :: proc(state: ^GameState, input: Input, dt: f32) -> ^LowEntity {
 		player.status,
 		animate_done,
 		is_moving,
+		player.z_supported,
 		try_attack_1,
 		try_attack_2,
 		try_jump,

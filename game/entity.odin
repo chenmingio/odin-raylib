@@ -76,6 +76,7 @@ LowEntity :: struct {
 	collides:              bool, // false：纯装饰物：草、背景石头、特效、粒子。
 	stair_direction:       StairDirection,
 	stair_level:           u8,
+	z_supported:           bool,
 }
 
 SimEntity :: struct {

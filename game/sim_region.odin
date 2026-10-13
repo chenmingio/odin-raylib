@@ -1,5 +1,6 @@
 package game
 
+import "core:math"
 import "core:math/linalg"
 
 SimRegion :: struct {
@@ -77,6 +78,8 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory, dt: f32) -> SimRegion {
 
 simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_memory: ^Memory) {
 	entities := sim_region.entities[:sim_region.entity_count]
+	// p 是相对摄像机的坐标，世界地面 z=0 必须转换到同一坐标系。
+	ground_z := relative_pos(game_state.world, WorldPosition{}, game_state.camera_p).z
 
 	// 不需要同步模拟(也就是不需要使用相对速度/加速度）
 	// a物体运动好以后，b物体在a物体移动后的状态下继续算他的运动。
@@ -106,8 +109,16 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 			remaining_delta := e_a.low_entity.dp * dt + 0.5 * e_a.low_entity.ddp * dt * dt
 			e_a.low_entity.dp = e_a.low_entity.dp + e_a.low_entity.ddp * dt
 
-			// z 方向单独处理，不参与碰撞
+			// z 方向单独处理，不参与碰撞循环
 			e_a.p.z += remaining_delta.z
+			if e_a.p.z <= ground_z {
+				e_a.p.z = ground_z
+				e_a.low_entity.dp.z = 0
+				e_a.low_entity.ddp.z = 0
+				e_a.low_entity.z_supported = true
+			} else {
+				e_a.low_entity.z_supported = false
+			}
 			remaining_delta.z = 0
 
 			for n in 0 ..< 4 {
@@ -148,7 +159,7 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 					)
 					if stop_on_collison {
 						entity_delta := remaining_delta * nearest_hit.sweep_fraction
-						e_a.p += entity_delta
+						e_a.p.xy += entity_delta.xy
 
 						dp_remaining_xy :=
 							linalg.dot(
@@ -163,15 +174,13 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 							nearest_hit.surface,
 						)
 					} else {
-						// 没有碰撞
-						dp := remaining_delta
-						e_a.p += dp
+						// 穿过对象，没有碰撞
+						e_a.p.xy += remaining_delta.xy
 						break
 					}
 				} else {
-					// 没有碰撞
-					dp := remaining_delta
-					e_a.p += dp
+					// 没有接触，没有碰撞
+					e_a.p.xy += remaining_delta.xy
 					break
 				}
 			}

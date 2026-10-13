@@ -86,8 +86,10 @@ update_and_render: UpdateAndRenderProc : proc(
 	shark := get_low_entity(game_state, game_state.shark)
 	update_shark_state(shark, game_state, game_memory, dt)
 
-	// camera追随player
+	// camera只追随player的水平位置，跳跃不改变视点高度。
 	game_state.camera_p = player.pos
+	game_state.camera_p.chunkXYZ.z = 0
+	game_state.camera_p.offset.z = 0
 
 	when ODIN_DEBUG {
 		draw_line_x(image_buffer.height / 2, image_buffer)

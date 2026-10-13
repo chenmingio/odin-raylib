@@ -25,6 +25,7 @@ initialize_game :: proc(game_state: ^GameState, game_memory: ^Memory) {
 		hit_point_total = 3,
 		hit_point_left  = 1,
 		collides        = true,
+		z_supported     = true,
 	}
 	game_state.player = add_low_entity(game_state, player, game_memory)
 
@@ -39,6 +40,7 @@ initialize_game :: proc(game_state: ^GameState, game_memory: ^Memory) {
 		hit_point_total = 3,
 		hit_point_left  = 3,
 		collides        = true,
+		z_supported     = true,
 	}
 	game_state.shark = add_low_entity(game_state, new_shark, game_memory)
 	shark := get_low_entity(game_state, game_state.shark)
@@ -85,6 +87,10 @@ initialize_game :: proc(game_state: ^GameState, game_memory: ^Memory) {
 		"Warrior",
 		V2i{95, 130},
 	)
+	// Warrior 素材没有 Jump 标签，跳跃时暂用 Idle 动画。
+	if len(game_state.unit_animate.clips[.Jump].frames) == 0 {
+		game_state.unit_animate.clips[.Jump] = game_state.unit_animate.clips[.Idle]
+	}
 
 	game_state.harpoon_shark_assets = load_aseprite_assets(
 		game_memory,
