@@ -3,12 +3,20 @@ package game
 import "core:math"
 import "core:math/linalg"
 
+// 按完整 chunk 预留容量；实际加载范围在 begin_sim 中检查。
+MAX_SIM_TILE_X :: 6 * CHUNK_TILE_DIM.x
+MAX_SIM_TILE_Y :: 6 * CHUNK_TILE_DIM.y
+
 SimRegion :: struct {
 	entities:            [4096]SimEntity, // 复制数据（而不是id或者指针），方便模拟和修改
 	entity_count:        u32,
 	debug_collision:     CollisionDebug,
 	max_entity_radius:   f32,
 	max_entity_velocity: f32,
+	sim_tiles:           [MAX_SIM_TILE_Y][MAX_SIM_TILE_X]^TerrainTile,
+	tile_origin_rel:     V3, // sim_tiles[0][0] 左下角相对 camera 的位置
+	tile_count_x:        i32,
+	tile_count_y:        i32,
 }
 
 // 加载相关entity到high区
@@ -37,6 +45,16 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory, dt: f32) -> SimRegion {
 	camera_bounds := Box{-camera_bound_rel, camera_bound_rel}
 	bounds_min := world_pos_minus(state.world, camera_bounds_min, margin_radius)
 	bounds_max := world_pos_add(state.world, camera_bounds_max, margin_radius)
+
+	result.tile_count_x = (bounds_max.chunkXYZ.x - bounds_min.chunkXYZ.x + 1) * CHUNK_TILE_DIM.x
+	result.tile_count_y = (bounds_max.chunkXYZ.y - bounds_min.chunkXYZ.y + 1) * CHUNK_TILE_DIM.y
+	assert(result.tile_count_x <= MAX_SIM_TILE_X, "sim tile range exceeds X capacity")
+	assert(result.tile_count_y <= MAX_SIM_TILE_Y, "sim tile range exceeds Y capacity")
+	result.tile_origin_rel = relative_pos(
+		state.world,
+		WorldPosition{V3i{bounds_min.chunkXYZ.x, bounds_min.chunkXYZ.y, 0}, V3{}},
+		state.camera_p,
+	)
 
 	for x in bounds_min.chunkXYZ.x ..= bounds_max.chunkXYZ.x {
 		for y in bounds_min.chunkXYZ.y ..= bounds_max.chunkXYZ.y {
@@ -67,6 +85,24 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory, dt: f32) -> SimRegion {
 						assert(result.entity_count < len(result.entities))
 						result.entities[result.entity_count] = high_entity
 						result.entity_count += 1
+					}
+				}
+
+				// 当前地形存放在世界 chunk.z=0，二维索引不混入其他高度层。
+				if z != 0 {continue}
+				// 以最小 chunk 的第一个格子为原点，直接使用整数格子下标。
+				for row, local_y in chunk.tile_map {
+					for tile, local_x in row {
+						if tile.visual == .Empty {
+							continue
+						}
+						sim_x :=
+							(chunk.chunkXYZ.x - bounds_min.chunkXYZ.x) * CHUNK_TILE_DIM.x +
+							i32(local_x)
+						sim_y :=
+							(chunk.chunkXYZ.y - bounds_min.chunkXYZ.y) * CHUNK_TILE_DIM.y +
+							i32(local_y)
+						result.sim_tiles[sim_y][sim_x] = &chunk.tile_map[local_y][local_x]
 					}
 				}
 			}
@@ -104,7 +140,7 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 			// dt = 本帧时长
 			// v1    = v0 + a * dt
 
-			// 如果没有碰撞，运行的距离
+			// 运行的位移。从没有碰撞的最远位移开始。当出现碰撞停下后，再按比例扣除。
 			// delta = v0 * dt + 0.5 * a * dt * dt
 			remaining_delta := e_a.low_entity.dp * dt + 0.5 * e_a.low_entity.ddp * dt * dt
 			e_a.low_entity.dp = e_a.low_entity.dp + e_a.low_entity.ddp * dt
@@ -121,36 +157,69 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 			}
 			remaining_delta.z = 0
 
+			// 碰撞很近时，需要多次碰撞才会用完delta位移
 			for n in 0 ..< 4 {
 
 				nearest_hit := HitResult {
 					sweep_fraction = 1,
 				}
-				// 先找到最近的碰撞对象nearest_hit，计算碰撞结果
+				nearest_hit_box: Box
+				// 遍历所有entity，找到最近的接触对象，保存到nearest_hit
 				for &e_b in entities {
-					// check-point-1: 有些不碰撞，比如玩家和他的武器
+					// check-point-1: 有些规则上就不用计算接触，比如玩家和他的武器。接触以后也可能不停下，而是有作用，比如扣血。
 					if can_collide(&e_a, &e_b, game_state) {
-						hit_result := collide_minkowski_swept_AABB(&e_a, &e_b, remaining_delta.xy)
+						ety_box_a := entity_size_box(e_a.low_entity.size, e_a.p)
+						ety_box_b := entity_size_box(e_b.low_entity.size, e_b.p)
+
+						hit_result := collide_minkowski_swept_AABB_Box(
+							ety_box_a,
+							ety_box_b,
+							remaining_delta,
+						)
 						if hit_result.hit &&
 						   (hit_result.sweep_fraction < nearest_hit.sweep_fraction) {
 							hit_result.other = &e_b
 							nearest_hit = hit_result
+							nearest_hit_box = ety_box_b
 						}
 					}
 				}
 
+				for tile_row, tile_y in sim_region.sim_tiles {
+					for tile, tile_x in tile_row {
+						if tile == nil {continue}
+						tile_rel_pos :=
+							sim_region.tile_origin_rel +
+							V3{f32(tile_x), f32(tile_y), 0} * TILE_SIDE_IN_METERS
+						tile_box := tile_box(tile, tile_rel_pos)
+						ety_box_a := entity_size_box(e_a.low_entity.size, e_a.p)
+						hit_result := collide_minkowski_swept_AABB_Box(
+							ety_box_a,
+							tile_box,
+							remaining_delta,
+						)
+						if hit_result.hit &&
+						   (hit_result.sweep_fraction < nearest_hit.sweep_fraction) {
+							hit_result.other = tile
+							nearest_hit = hit_result
+							nearest_hit_box = tile_box
+						}
+					}
+				}
+
+				// 如果有接触
 				if nearest_hit.hit {
 					// debug显示碰撞箱
 					record_collision_debug(
 						&sim_region.debug_collision,
-						&e_a,
-						nearest_hit.other,
+						entity_size_box(e_a.low_entity.size, e_a.p),
+						nearest_hit_box,
 						remaining_delta.xy,
 						nearest_hit,
 					)
-					// check-point-2: 碰撞以后有些特殊逻辑。
-					// 因为是loop循环系统，有些逻辑可以通过修改check-point-1的碰撞逻辑解决handle-collison的问题
-					// 比如碰撞过一次以后就不扣血了，但是可以变成碰撞过一次以后就不碰撞了（也不扣血了）
+					// check-point-2: 接触以后有些特殊逻辑。
+					// 因为是loop循环，有些逻辑可以通过修改check-point-1的碰撞逻辑解决handle-collison的问题
+					// 比如接触过一次以后就不扣血了，但是可以变成接触过一次以后就不接触了（也不扣血了）
 					stop_on_collison := handle_collision(
 						&e_a,
 						nearest_hit.other,
@@ -158,28 +227,24 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 						game_memory,
 					)
 					if stop_on_collison {
+						// 实体停下后的位移
 						entity_delta := remaining_delta * nearest_hit.sweep_fraction
 						e_a.p.xy += entity_delta.xy
 
-						dp_remaining_xy :=
-							linalg.dot(
-								remaining_delta.xy * (1 - nearest_hit.sweep_fraction),
-								nearest_hit.surface.xy,
-							) *
-							nearest_hit.surface.xy
-						remaining_delta.xy = dp_remaining_xy
+						// AABB 的轴向法线是单位向量。去掉法线分量，保留沿表面的运动。
+						normal := V2{f32(nearest_hit.norm.x), f32(nearest_hit.norm.y)}
+						remaining_delta.xy *= 1 - nearest_hit.sweep_fraction
+						remaining_delta.xy -= linalg.dot(remaining_delta.xy, normal) * normal
 
-						e_a.low_entity.dp.xy = linalg.dot(
-							e_a.low_entity.dp.xy,
-							nearest_hit.surface,
-						)
+						// 水平速度使用同样的投影，z 方向仍由上面的独立逻辑处理。
+						e_a.low_entity.dp.xy -= linalg.dot(e_a.low_entity.dp.xy, normal) * normal
 					} else {
-						// 穿过对象，没有碰撞
+						// 接触，但是规则是穿过对象，不会停下
 						e_a.p.xy += remaining_delta.xy
 						break
 					}
 				} else {
-					// 没有接触，没有碰撞
+					// 没有接触
 					e_a.p.xy += remaining_delta.xy
 					break
 				}

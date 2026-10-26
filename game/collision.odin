@@ -13,6 +13,18 @@ Box :: struct {
 	max: V3,
 }
 
+box_minus :: proc(a: Box, b: Box) -> Box {
+	return Box{a.min - b.min, a.max - b.max}
+}
+
+box_center :: proc(a: Box) -> V3 {
+	return (a.min + a.max) * 0.5
+}
+
+box_size :: proc(a: Box) -> V3 {
+	return a.max - a.min
+}
+
 // 只用于画出最近一次 sweep 命中的计算过程；所有坐标都仍在 sim 的相对世界坐标中。
 CollisionDebug :: struct {
 	valid:              bool,
@@ -26,6 +38,7 @@ CollisionDebug :: struct {
 }
 
 SIM_EPS :: math.F32_EPSILON
+CONTACT_DISTANCE_EPS :: math.F32_EPSILON * 10
 
 high_entity_rect_center :: proc(h_e: ^SimEntity) -> V2 {
 	result := h_e.p
@@ -40,22 +53,30 @@ WallSide :: struct {
 	wall_scope:   V2, // wall min/max
 }
 
+BoxWall :: struct {}
+
+HitTarget :: union {
+	^SimEntity,
+	^TerrainTile,
+}
+
 HitResult :: struct {
 	hit:            bool,
-	other:          ^SimEntity,
-	surface:        V2,
+	other:          HitTarget,
 	sweep_fraction: f32,
+	norm:           V3i,
 }
 
 record_collision_debug :: proc(
 	debug: ^CollisionDebug,
-	ety_a, ety_b: ^SimEntity,
+	box_a, box_b: Box,
 	dp_remaining: V2,
 	hit: HitResult,
 ) {
-	c_a := high_entity_rect_center(ety_a)
-	c_b := high_entity_rect_center(ety_b)
-	half := (ety_a.low_entity.size + ety_b.low_entity.size) / 2
+	// entity 和 tile 都能提供 Box，调试绘制不需要知道命中对象的类型。
+	c_a := box_center(box_a).xy
+	c_b := box_center(box_b).xy
+	half := (box_size(box_a) + box_size(box_b)) / 2
 	relative_ray := -dp_remaining
 
 	debug^ = CollisionDebug {
@@ -70,12 +91,98 @@ record_collision_debug :: proc(
 	}
 }
 
+//ray_box_collide_test :: proc(box: Box, ray_start: V3, dp: V3 ) ->
+
+collide_minkowski_swept_AABB_Box :: proc(box_a: Box, box_b: Box, dp_remaining: V3) -> HitResult {
+	{
+		// 画出minkowski对应的碰撞体积
+		// 把原点放在B的中心，判断原点是否在 in (A-B)?
+		// A - B = A + B（矩形在原点上反转不变） = 以A为中心外面加1/2B的扩大矩形
+		c_a := box_center(box_a)
+		c_b := box_center(box_b)
+		// B为原点，A是A-B
+		pos_a_minus_b := c_a - c_b
+		// B是点，A是体积，以B的中心运动速度为视角,A静止不动
+		// 简化算法，other的速度为0
+
+		// 使用位移dp代替速度。因为简化算法基于位移不变，而不是速度，更不是时间
+		ray := -dp_remaining
+
+		extented_A_half := (box_size(box_a) + box_size(box_b)) / 2
+		extented_A := Box{pos_a_minus_b - extented_A_half, pos_a_minus_b + extented_A_half}
+
+		// 3个方向碰撞盒的最小/大值
+		min := extented_A.min
+		max := extented_A.max
+
+		// 如果没有碰撞，将使用100%的位移。碰撞则是最短的位移比例
+		no_hit := HitResult {
+			hit = false,
+		}
+		// 允许fraction为很小的负数，用来应对初始叠加的问题
+		fraction_enter: f32 = math.inf_f32(-1)
+		fraction_exit: f32 = 1
+
+		norm := V3i{}
+		enter_axis := -1
+
+		for axis in 0 ..< 3 {
+			box_min_axis := min[axis]
+			box_max_axis := max[axis]
+			ray_dp_axis := ray[axis]
+
+			// 这个轴方向的位移几乎为0，那如果这个方向的range没有覆盖原点，则永远不可能接触
+			if math.abs(ray_dp_axis) < SIM_EPS {
+				if (box_min_axis > 0) || (box_max_axis < 0) {
+					return no_hit
+				} else {
+					continue
+				}
+			}
+
+			fraction_1 := box_min_axis / ray_dp_axis
+			fraction_2 := box_max_axis / ray_dp_axis
+
+			near := math.min(fraction_1, fraction_2)
+			far := math.max(fraction_1, fraction_2)
+
+			// 比其他维度,最后进入碰撞体范围，说明相比之下最后碰到这条边，这个轴就是垂直接触的轴
+			if near > fraction_enter {
+				enter_axis = axis
+				fraction_enter = near
+				norm = V3i{}
+				norm[axis] = ray_dp_axis > 0 ? 1 : -1
+			}
+
+			if far < fraction_exit {
+				fraction_exit = far
+			}
+
+			// 只有存在共同的区间时，才有hit
+			if fraction_enter > fraction_exit {
+				return no_hit
+			}
+
+		}
+
+		// 因为friction_enter很小，friction_exit可能小于0，需要排除
+		if enter_axis < 0 || fraction_exit < 0 {return no_hit}
+		//使用绝对距离作为EPS，而不是作为friction-eps
+		fraction_eps := CONTACT_DISTANCE_EPS / math.abs(ray[enter_axis])
+		if fraction_enter < -fraction_eps {
+			return no_hit
+		}
+
+		return HitResult{hit = true, sweep_fraction = math.max(fraction_enter, 0), norm = norm}
+	}}
+
+
 // TODO 现在的回退策略不是很好。需要更好的方法解决float导致的突然卡在边缘/内部的问题。
-// 返回碰撞模拟结果，但不能直接修改entity的状态，因为要与所有可能碰撞的entity的碰撞计算选取最近的
-collide_minkowski_swept_AABB :: proc(
+// 返回碰撞模拟结果，但不能在此处直接修改entity的状态，因为要与所有可能碰撞的entity的碰撞计算选取最近的
+collide_minkowski_swept_AABB_2D :: proc(
 	ety_a: ^SimEntity,
 	ety_b: ^SimEntity,
-	dp_remaining: V2,
+	dp_remaining: V2, // entity_a的位移范围。如果在范围内没有碰撞就返回non-hit
 ) -> HitResult {
 	// 画出minkowski对应的碰撞体积
 	// 把原点放在B的中心，判断原点是否在 in (A-B)?
@@ -111,7 +218,6 @@ collide_minkowski_swept_AABB :: proc(
 	for side in wall_sides {
 		sweep_fraction: f32
 		the_other_axis_value: f32
-		surface := side.dirction
 		// y=Cy 水平线 y固定，检查x
 		if (side.dirction == V2{1, 0}) {
 			if math.abs(ray.y) < SIM_EPS {continue} 	// 射线和wall都是水平线，不相交
@@ -134,7 +240,8 @@ collide_minkowski_swept_AABB :: proc(
 
 			nearest_hit.hit = true
 			nearest_hit.sweep_fraction = math.max(sweep_fraction - 0.001, 0)
-			nearest_hit.surface = surface
+			// ray 是反向相对位移，因此物体的接触法线与这条边的外法线相反。
+			nearest_hit.norm = V3i{-i32(side.norm_outside.x), -i32(side.norm_outside.y), 0}
 		}
 	}
 	return nearest_hit
@@ -170,10 +277,15 @@ can_collide :: proc(ety_a: ^SimEntity, ety_b: ^SimEntity, state: ^GameState) -> 
 // 目前返回stop_on_collison。但其实可以返回多个碰撞后的信息/event（是否停止？是否受伤？等等）
 handle_collision :: proc(
 	e_a: ^SimEntity,
-	e_b: ^SimEntity,
+	other: HitTarget,
 	state: ^GameState,
 	memory: ^Memory,
 ) -> bool {
+	// tile 只负责阻挡；实体之间才需要执行扣血等游戏逻辑。
+	e_b, is_entity := other.(^SimEntity)
+	if !is_entity {
+		return true
+	}
 	// 碰撞事件处理
 	// pairwise-based-rule-2:不能重复碰撞
 	weapon_vs_player :=
@@ -210,4 +322,13 @@ entity_size_box :: proc(size: V3, pos: V3) -> Box {
 		min = pos - V3{size.x / 2, size.y / 2, 0},
 		max = pos + V3{size.x / 2, size.y / 2, size.z},
 	}
+}
+
+tile_box :: proc(tile: ^TerrainTile, tile_pos: V3) -> Box {
+	return Box {
+		min = tile_pos,
+		max = tile_pos +
+		V3{TILE_SIDE_IN_METERS, TILE_SIDE_IN_METERS, f32(tile.level) * TILE_SIDE_IN_METERS},
+	}
+
 }
