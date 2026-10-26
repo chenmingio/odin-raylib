@@ -131,9 +131,9 @@ collide_minkowski_swept_AABB_Box :: proc(box_a: Box, box_b: Box, dp_remaining: V
 			box_max_axis := max[axis]
 			ray_dp_axis := ray[axis]
 
-			// 这个轴方向的位移几乎为0，那如果这个方向的range没有覆盖原点，则永远不可能接触
+			// 此轴位移几乎为 0 时，需要体积重叠才可能阻挡；仅贴面允许沿表面移动。
 			if math.abs(ray_dp_axis) < SIM_EPS {
-				if (box_min_axis > 0) || (box_max_axis < 0) {
+				if (box_min_axis >= 0) || (box_max_axis <= 0) {
 					return no_hit
 				} else {
 					continue
