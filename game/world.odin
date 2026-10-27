@@ -45,7 +45,7 @@ WorldChunk :: struct {
 	first_block:  ^WorldEntityBlock, // block是固定容量的储存容器，链表结构，动态创建，用freeList回收不用的
 	chunkXYZ:     V3i,
 	next_in_hash: ^WorldChunk, // chunk hash里同一个bucket里的下一个chunk
-	tile_map:     [CHUNK_TILE_DIM.y][CHUNK_TILE_DIM.x]TerrainTile,
+	tile_map:     [CHUNK_TILE_DIM.y][CHUNK_TILE_DIM.x]TerrainTile, //数组
 }
 
 World :: struct {
