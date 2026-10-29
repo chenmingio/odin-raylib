@@ -83,7 +83,8 @@ canonicalize_axis :: proc(chunk: i32, offset: f32, chunk_side_in_meters: f32) ->
 	new_chunk := chunk + chunk_delta
 	new_offset := offset - f32(chunk_delta) * chunk_side_in_meters
 
-	if (new_offset + SIM_EPS) > f32(chunk_side_in_meters) {
+	// 微小负 offset 归一化时可能舍入到上界，需要进位以保持 [0, chunk_side)。
+	if new_offset >= chunk_side_in_meters {
 		new_chunk += 1
 		new_offset = 0
 	}
