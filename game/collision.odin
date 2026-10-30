@@ -91,8 +91,6 @@ record_collision_debug :: proc(
 	}
 }
 
-//ray_box_collide_test :: proc(box: Box, ray_start: V3, dp: V3 ) ->
-
 collide_minkowski_swept_AABB_Box :: proc(box_a: Box, box_b: Box, dp_remaining: V3) -> HitResult {
 	{
 		// 画出minkowski对应的碰撞体积
@@ -152,7 +150,7 @@ collide_minkowski_swept_AABB_Box :: proc(box_a: Box, box_b: Box, dp_remaining: V
 				enter_axis = axis
 				fraction_enter = near
 				norm = V3i{}
-				norm[axis] = ray_dp_axis > 0 ? 1 : -1
+				norm[axis] = ray_dp_axis > 0 ? 1 : -1 // 真实的方向与ray相反，与dp同向
 			}
 
 			if far < fraction_exit {
@@ -326,6 +324,15 @@ entity_size_box :: proc(size: V3, pos: V3) -> Box {
 }
 
 tile_box :: proc(tile: ^TerrainTile, tile_pos: V3) -> Box {
+	// 地面上是砖块,上方与地面齐平，不是立方体box
+	if tile.level == 0 {
+		pos := tile_pos
+		pos.z = pos.z - 0.01
+		return Box {
+			min = tile_pos + V3{0, 0, -0.01},
+			max = tile_pos + V3{TILE_SIDE_IN_METERS, TILE_SIDE_IN_METERS, 0},
+		}
+	}
 	return Box {
 		min = tile_pos,
 		max = tile_pos +
