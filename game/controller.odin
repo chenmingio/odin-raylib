@@ -7,6 +7,7 @@ Input :: struct {
 ButtonState :: struct {
 	// half_transition_count: u32,
 	ended_down: bool,
+	pressed:    bool, // 本帧刚按下；持续按住不会重复触发。
 }
 
 ControllerInput :: struct {

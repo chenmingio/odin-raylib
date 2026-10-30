@@ -114,8 +114,6 @@ begin_sim :: proc(state: ^GameState, memory: ^Memory, dt: f32) -> SimRegion {
 
 simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_memory: ^Memory) {
 	entities := sim_region.entities[:sim_region.entity_count]
-	// p 是相对摄像机的坐标，世界地面 z=0 必须转换到同一坐标系。
-	ground_z := relative_pos(game_state.world, WorldPosition{}, game_state.camera_p).z
 
 	// 不需要同步模拟(也就是不需要使用相对速度/加速度）
 	// a物体运动好以后，b物体在a物体移动后的状态下继续算他的运动。
@@ -123,6 +121,8 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 	for &e_a in entities {
 		// 只有运动的物体才会碰撞改变位置，不需要对墙体做运动判断。
 		if e_a.low_entity.moveable && e_a.updatable {
+			// 每帧重新确认支撑，只清一次；后续顶面碰撞可以重新设为 true。
+			e_a.low_entity.z_supported = false
 			// other是不动的。即使他是个怪物，被碰撞时，也需要保持不动。
 			// 如果是怪物碰hero，可能hero被卡住了。所以可以在shouldCollide里控制。
 
@@ -144,18 +144,6 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 			// delta = v0 * dt + 0.5 * a * dt * dt
 			remaining_delta := e_a.low_entity.dp * dt + 0.5 * e_a.low_entity.ddp * dt * dt
 			e_a.low_entity.dp = e_a.low_entity.dp + e_a.low_entity.ddp * dt
-
-			// z 方向单独处理，不参与碰撞循环
-			e_a.p.z += remaining_delta.z
-			if e_a.p.z <= ground_z {
-				e_a.p.z = ground_z
-				e_a.low_entity.dp.z = 0
-				e_a.low_entity.ddp.z = 0
-				e_a.low_entity.z_supported = true
-			} else {
-				e_a.low_entity.z_supported = false
-			}
-			remaining_delta.z = 0
 
 			// 碰撞很近时，需要多次碰撞才会用完delta位移
 			for n in 0 ..< 4 {
@@ -229,23 +217,31 @@ simulate :: proc(sim_region: ^SimRegion, dt: f32, game_state: ^GameState, game_m
 					if stop_on_collison {
 						// 实体停下后的位移
 						entity_delta := remaining_delta * nearest_hit.sweep_fraction
-						e_a.p.xy += entity_delta.xy
+						e_a.p += entity_delta
 
 						// AABB 的轴向法线是单位向量。去掉法线分量，保留沿表面的运动。
-						normal := V2{f32(nearest_hit.norm.x), f32(nearest_hit.norm.y)}
-						remaining_delta.xy *= 1 - nearest_hit.sweep_fraction
-						remaining_delta.xy -= linalg.dot(remaining_delta.xy, normal) * normal
+						normal := V3 {
+							f32(nearest_hit.norm.x),
+							f32(nearest_hit.norm.y),
+							f32(nearest_hit.norm.z),
+						}
+						remaining_delta *= 1 - nearest_hit.sweep_fraction
+						remaining_delta -= linalg.dot(remaining_delta, normal) * normal
 
-						// 水平速度使用同样的投影，z 方向仍由上面的独立逻辑处理。
-						e_a.low_entity.dp.xy -= linalg.dot(e_a.low_entity.dp.xy, normal) * normal
+						e_a.low_entity.dp -= linalg.dot(e_a.low_entity.dp, normal) * normal
+
+						// 只有阻挡性的顶面接触提供支撑，侧面和天花板不提供。
+						if nearest_hit.norm.z == 1 {
+							e_a.low_entity.z_supported = true
+						}
 					} else {
 						// 接触，但是规则是穿过对象，不会停下
-						e_a.p.xy += remaining_delta.xy
+						e_a.p += remaining_delta
 						break
 					}
 				} else {
 					// 没有接触
-					e_a.p.xy += remaining_delta.xy
+					e_a.p += remaining_delta
 					break
 				}
 			}

@@ -82,7 +82,7 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	draw_rectangle(V2i{0, 0}, V2i{image_buffer.width, image_buffer.height}, WATER, image_buffer)
 
-	player := update_player(game_state, input, dt)
+	player := update_player(game_state, input)
 	shark := get_low_entity(game_state, game_state.shark)
 	update_shark_state(shark, game_state, game_memory, dt)
 
@@ -108,6 +108,7 @@ update_and_render: UpdateAndRenderProc : proc(
 
 	sim_region := begin_sim(game_state, game_memory, dt)
 	simulate(&sim_region, dt, game_state, game_memory)
+	update_player_animation(game_state, input, dt)
 	render_sim_region(&sim_region, image_buffer, game_state, dt)
 	when ODIN_DEBUG {
 		draw_collision_debug(sim_region.debug_collision, image_buffer)

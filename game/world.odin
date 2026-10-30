@@ -14,8 +14,8 @@ TILE_SIDE_IN_METERS :: f32(1)
 // 1280x720 在 64 px/m 下约为 20x11.25m；Y 向上取整以覆盖完整屏幕。
 CAMERA_VIEW_SPAN_X_IN_METERS :: f32(20)
 CAMERA_VIEW_SPAN_Y_IN_METERS :: f32(12)
-// Z 不是由屏幕尺寸推导的，而是需要同时模拟的游戏世界高度。
-CAMERA_VIEW_SPAN_Z_IN_METERS :: f32(4)
+// 当前 1m 高台以 4.5m/s 起跳，脚底最高约 2.04m；上下各 3m 保留模拟余量。
+CAMERA_VIEW_SPAN_Z_IN_METERS :: f32(6)
 
 CHUNK_DIM_IN_METERS :: V3 {
 	f32(CHUNK_TILE_DIM.x) * TILE_SIDE_IN_METERS,
